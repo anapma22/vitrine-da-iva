@@ -6,13 +6,14 @@ MVP simples para uma revendedora controlar produtos à pronta entrega e comparti
 
 - catálogo público responsivo;
 - busca e filtros por marca/categoria;
+- área de promoções com preço original e promocional;
 - botão de WhatsApp com o nome do produto;
 - login privado da vendedora;
 - **MFA TOTP obrigatório** no painel (Google Authenticator, Microsoft Authenticator, 1Password, Apple Passwords etc.);
 - autorização separada: estar logado **não** basta para administrar; a sessão também precisa estar em **AAL2**;
 - cadastro de produto pelo celular, inclusive usando a câmera;
 - redução e conversão das fotos para economizar Storage;
-- preço e quantidade;
+- preço normal, preço promocional opcional e quantidade;
 - botão **Vendi 1**;
 - botão **Chegou 1**;
 - ocultar/ativar produto sem apagar o histórico;
@@ -50,8 +51,8 @@ on conflict (user_id) do nothing;
 > A chave pública fica no frontend por design. A segurança administrativa é feita por Auth + RLS + `app_admins`. Nunca coloque `service_role`/secret key no site.
 
 > Em um projeto que já executou uma versão anterior, rode novamente o `supabase.sql`
-> **antes** de publicar o frontend atualizado. A assinatura da RPC `adjust_stock` agora
-> inclui uma chave de idempotência.
+> **antes** de publicar o frontend atualizado. O arquivo funciona também como upgrade
+> idempotente e adiciona campos e proteções que ainda não existam no projeto.
 
 ## 2. Verificar o bucket de fotos
 
@@ -94,7 +95,12 @@ npm run dev
 ```
 
 - Catálogo: `http://localhost:5173/`
-- Painel: `http://localhost:5173/?admin=1`
+- Painel não divulgado: `http://localhost:5173/?acesso=6d91c4f2a7be`
+
+O catálogo não exibe link para o painel e a rota administrativa solicita aos
+buscadores que não a indexem. Salve o endereço nos favoritos do dispositivo da
+vendedora. Esse endereço não é um segredo de segurança: a proteção real continua
+sendo login, `app_admins`, MFA/AAL2 e RLS.
 
 ## 4. Checklist de teste local
 
@@ -115,8 +121,10 @@ Antes do deploy, valide:
 13. confirmar que estoque 0 não aparece nem pela consulta pública da API;
 14. ocultar um produto com estoque e confirmar que ele some do catálogo;
 15. editar preço/nome/foto e confirmar que o estoque não é alterado;
-16. abrir o botão do WhatsApp e conferir número e mensagem;
-17. executar `npm run verify:supabase` e confirmar que todas as verificações passam.
+16. cadastrar um preço promocional menor que o normal e conferir a aba **Promoções**;
+17. tentar cadastrar uma promoção igual ou maior que o preço normal e confirmar que é recusada;
+18. abrir o botão do WhatsApp e conferir número e mensagem;
+19. executar `npm run verify:supabase` e confirmar que todas as verificações passam.
 
 ## 5. Publicar no Cloudflare Pages
 

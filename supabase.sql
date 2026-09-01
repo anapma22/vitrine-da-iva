@@ -19,6 +19,8 @@ create table if not exists public.products (
   category text constraint products_category_length_check
     check (category is null or length(category) <= 80),
   price numeric(10,2) not null default 0 check (price >= 0),
+  promotional_price numeric(10,2) constraint products_promotional_price_check
+    check (promotional_price is null or (promotional_price > 0 and promotional_price < price)),
   quantity integer not null default 0 check (quantity >= 0),
   image_path text constraint products_image_path_format_check check (
     image_path is null
@@ -48,6 +50,9 @@ create table if not exists public.stock_movements (
 -- Os blocos abaixo transformam o bootstrap também em um upgrade idempotente.
 alter table public.stock_movements
   add column if not exists operation_id uuid not null default gen_random_uuid();
+
+alter table public.products
+  add column if not exists promotional_price numeric(10,2);
 
 do $$
 begin
@@ -79,6 +84,16 @@ begin
     alter table public.products
       add constraint products_category_length_check
       check (category is null or length(category) <= 80);
+  end if;
+
+  if not exists (
+    select 1 from pg_catalog.pg_constraint
+    where conrelid = 'public.products'::regclass
+      and conname = 'products_promotional_price_check'
+  ) then
+    alter table public.products
+      add constraint products_promotional_price_check
+      check (promotional_price is null or (promotional_price > 0 and promotional_price < price));
   end if;
 
   if not exists (
@@ -118,9 +133,9 @@ revoke all on table public.app_admins from anon, authenticated;
 -- Defense in depth: além do RLS, restringimos os privilégios da Data API.
 revoke all on table public.products from anon, authenticated;
 grant select on table public.products to anon, authenticated;
-grant insert (id, name, brand, category, price, quantity, image_path, active)
+grant insert (id, name, brand, category, price, promotional_price, quantity, image_path, active)
   on public.products to authenticated;
-grant update (name, brand, category, price, image_path, active)
+grant update (name, brand, category, price, promotional_price, image_path, active)
   on public.products to authenticated;
 
 revoke all on table public.stock_movements from anon, authenticated;

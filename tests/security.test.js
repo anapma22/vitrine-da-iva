@@ -11,7 +11,8 @@ test('RLS exige admin AAL2 e não publica produtos sem estoque', async () => {
   assert.match(sql, /auth\.jwt\(\) ->> 'aal'\), ''\) = 'aal2'/)
   assert.match(sql, /using \(active = true and quantity > 0\)/)
   assert.match(sql, /revoke all on table public\.app_admins from anon, authenticated/)
-  assert.match(sql, /grant update \(name, brand, category, price, image_path, active\)/)
+  assert.match(sql, /grant update \(name, brand, category, price, promotional_price, image_path, active\)/)
+  assert.match(sql, /promotional_price is null or \(promotional_price > 0 and promotional_price < price\)/)
   assert.doesNotMatch(sql, /grant update \([^)]*quantity[^)]*\)/s)
 })
 
@@ -42,7 +43,8 @@ test('frontend envia chave idempotente e confirma linhas alteradas', async () =>
 
   assert.match(source, /p_operation_id: operationId/)
   assert.match(source, /sessionStorage\.setItem\(pendingKey, operationId\)/)
-  assert.match(source, /\.select\('id,name,brand,category,price,quantity,image_path'\)/)
+  assert.match(source, /\.select\('id,name,brand,category,price,promotional_price,quantity,image_path'\)/)
+  assert.match(source, /promotionalPrice <= 0 \|\| promotionalPrice >= price/)
   assert.match(source, /\.select\('id'\)/)
   assert.doesNotMatch(source, /\balert\s*\(/)
 })

@@ -10,9 +10,18 @@ const MAX_SOURCE_IMAGE_BYTES = 20 * 1024 * 1024
 const MAX_UPLOAD_IMAGE_BYTES = 5 * 1024 * 1024
 const MAX_IMAGE_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
+const FEATURED_BRANDS = ['Natura', 'Avon', 'Demillus', 'Eudora']
+const ADMIN_ACCESS_VALUE = '6d91c4f2a7be'
 
 const app = document.querySelector('#app')
-const isAdminRoute = new URLSearchParams(location.search).has('admin')
+const isAdminRoute = new URLSearchParams(location.search).get('acesso') === ADMIN_ACCESS_VALUE
+
+if (isAdminRoute) {
+  const robotsMeta = document.createElement('meta')
+  robotsMeta.name = 'robots'
+  robotsMeta.content = 'noindex, nofollow, noarchive'
+  document.head.append(robotsMeta)
+}
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   app.innerHTML = `<div class="shell"><div class="error">Configure <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> no arquivo .env.</div></div>`
@@ -23,6 +32,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 const esc = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]))
+const hasPromotion = product => product?.promotional_price != null
+  && Number.isFinite(Number(product.promotional_price))
+  && Number(product.promotional_price) > 0
+  && Number(product.promotional_price) < Number(product.price)
 let pendingAdminNotice = null
 
 const SAFE_ERROR_FRAGMENTS = [
@@ -39,6 +52,7 @@ const SAFE_ERROR_FRAGMENTS = [
   'A marca deve ter no máximo',
   'A categoria deve ter no máximo',
   'Informe um preço entre',
+  'O preço promocional deve ser',
   'Estoque inicial inválido',
   'Escolha entre remover',
   'Escolha um arquivo de imagem',
@@ -86,16 +100,59 @@ function imageUrl(path) {
 function header(admin = false) {
   return `<header class="header">
     <div class="brand"><h1>${esc(STORE_NAME)}</h1><p>${admin ? 'Controle de estoque' : 'Produtos disponíveis agora'}</p></div>
-    <a class="admin-link" href="${admin ? '/' : '/?admin=1'}">${admin ? 'Ver catálogo' : 'Área da vendedora'}</a>
+    ${admin ? '<a class="admin-link" href="/">Ver catálogo</a>' : ''}
   </header>`
 }
 
+function catalogIntro() {
+  return `<section class="hero">
+    <div class="hero-copy">
+      <span class="hero-kicker">Escolhas para você</span>
+      <h2>Um catálogo bonito, simples e feito para você</h2>
+      <p>Perfumes, cuidados pessoais e lingerie à pronta entrega, com atendimento direto pelo WhatsApp.</p>
+      <a class="btn btn-primary hero-cta" href="#catalog-products">Explorar produtos <span aria-hidden="true">↓</span></a>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="hero-glow"></div>
+      <div class="hero-availability"><span>Disponível</span><strong>agora</strong></div>
+      <div class="showcase-card showcase-perfume"><span>01</span><strong>Perfumaria</strong></div>
+      <div class="showcase-card showcase-care"><span>02</span><strong>Corpo &amp; banho</strong></div>
+      <div class="showcase-card showcase-fashion"><span>03</span><strong>Moda íntima</strong></div>
+      <div class="showcase-card showcase-makeup"><span>04</span><strong>Maquiagens</strong></div>
+      <div class="showcase-card showcase-orders"><span>05</span><strong>Encomendas</strong></div>
+    </div>
+  </section>
+  <section class="brand-showcase" aria-labelledby="featured-brands-title">
+    <p id="featured-brands-title" class="brand-showcase-title">Marcas que você encontra por aqui</p>
+    <ul class="brand-list">
+      ${FEATURED_BRANDS.map(brand => `<li class="brand-chip"><span aria-hidden="true">${esc(brand[0])}</span><strong>${esc(brand)}</strong></li>`).join('')}
+    </ul>
+  </section>
+  <section class="gift-highlight" aria-labelledby="gift-title">
+    <div class="gift-illustration" aria-hidden="true">
+      <span class="gift-spark gift-spark-one">✦</span>
+      <span class="gift-spark gift-spark-two">✦</span>
+      <div class="gift-box"><span class="gift-lid"></span><span class="gift-body"></span></div>
+    </div>
+    <div class="gift-copy">
+      <span class="gift-kicker">Um carinho em forma de presente</span>
+      <h2 id="gift-title">Presentes para datas especiais</h2>
+      <p>Escolha algo cheio de cuidado e confirme a disponibilidade diretamente pelo WhatsApp.</p>
+    </div>
+    <ul class="gift-occasions" aria-label="Sugestões de ocasiões">
+      <li>Aniversários</li>
+      <li>Datas comemorativas</li>
+      <li>Um carinho sem data</li>
+    </ul>
+  </section>`
+}
+
 async function renderCatalog() {
-  app.innerHTML = `<main class="shell">${header(false)}<section class="hero"><h2>Pronta entrega</h2><p>Escolha um produto e fale diretamente pelo WhatsApp.</p></section><div class="loading" role="status">Carregando produtos…</div></main>`
+  app.innerHTML = `<main class="shell">${header(false)}${catalogIntro()}<div class="loading" role="status">Carregando produtos…</div></main>`
 
   const { data, error } = await supabase
     .from('products')
-    .select('id,name,brand,category,price,quantity,image_path')
+    .select('id,name,brand,category,price,promotional_price,quantity,image_path')
     .eq('active', true)
     .gt('quantity', 0)
     .order('created_at', { ascending: false })
@@ -103,35 +160,60 @@ async function renderCatalog() {
   if (error) return showCatalogError(error.message)
 
   const products = data || []
+  const promotionCount = products.filter(hasPromotion).length
   const brands = [...new Set(products.map(p => p.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
   app.innerHTML = `<main class="shell">
     ${header(false)}
-    <section class="hero"><h2>Pronta entrega</h2><p>Escolha um produto e fale diretamente pelo WhatsApp.</p></section>
+    ${catalogIntro()}
+    <div class="catalog-tabs" role="group" aria-label="Tipo de produtos">
+      <button class="catalog-tab is-active" type="button" data-catalog-view="all" aria-pressed="true">Todos</button>
+      <button class="catalog-tab" type="button" data-catalog-view="promotions" aria-pressed="false">Promoções <span>${promotionCount}</span></button>
+    </div>
     <section class="filters" aria-label="Filtros do catálogo">
       <input id="search" class="control" aria-label="Buscar produtos" placeholder="Buscar perfume, hidratante, lingerie…" />
       <select id="brand" class="control" aria-label="Filtrar por marca"><option value="">Todas as marcas</option>${brands.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
       <select id="category" class="control" aria-label="Filtrar por categoria"><option value="">Todas as categorias</option>${categories.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
     </section>
+    <div id="catalog-products" class="catalog-heading">
+      <div><span class="section-kicker">Catálogo</span><h2>Produtos disponíveis</h2></div>
+      <span id="result-count" class="result-count"></span>
+    </div>
     <section id="catalog" class="grid" aria-live="polite"></section>
   </main>`
 
   const search = document.querySelector('#search')
   const brand = document.querySelector('#brand')
   const category = document.querySelector('#category')
+  const tabs = [...document.querySelectorAll('[data-catalog-view]')]
+  let activeView = 'all'
 
   const draw = () => {
     const q = search.value.trim().toLowerCase()
     const filtered = products.filter(p => {
       const haystack = `${p.name} ${p.brand || ''} ${p.category || ''}`.toLowerCase()
-      return (!q || haystack.includes(q)) && (!brand.value || p.brand === brand.value) && (!category.value || p.category === category.value)
+      return (!q || haystack.includes(q))
+        && (!brand.value || p.brand === brand.value)
+        && (!category.value || p.category === category.value)
+        && (activeView !== 'promotions' || hasPromotion(p))
     })
+    const resultCount = document.querySelector('#result-count')
+    resultCount.textContent = `${filtered.length} ${filtered.length === 1 ? 'produto' : 'produtos'}`
     document.querySelector('#catalog').innerHTML = filtered.length
       ? filtered.map(productCard).join('')
-      : `<div class="empty catalog-empty">Nenhum produto encontrado.</div>`
+      : `<div class="empty catalog-empty">${activeView === 'promotions' ? 'Nenhuma promoção encontrada com esses filtros.' : 'Nenhum produto encontrado.'}</div>`
   }
 
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    activeView = tab.dataset.catalogView
+    tabs.forEach(item => {
+      const selected = item === tab
+      item.classList.toggle('is-active', selected)
+      item.setAttribute('aria-pressed', String(selected))
+    })
+    draw()
+  }))
   search.addEventListener('input', draw)
   brand.addEventListener('change', draw)
   category.addEventListener('change', draw)
@@ -140,6 +222,7 @@ async function renderCatalog() {
 
 function productCard(p) {
   const photo = imageUrl(p.image_path)
+  const promotion = hasPromotion(p)
   const msg = `Olá! Vi ${p.name} no catálogo ${STORE_NAME}. Ainda está disponível?`
   const link = WHATSAPP_NUMBER ? `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}` : ''
   const whatsappAction = link
@@ -147,11 +230,11 @@ function productCard(p) {
     : `<button class="btn btn-whatsapp" type="button" disabled>WhatsApp não configurado</button>`
 
   return `<article class="card">
-    ${photo ? `<img class="product-image" src="${photo}" alt="${esc(p.name)}" loading="lazy" />` : `<div class="product-image placeholder" aria-hidden="true">♡</div>`}
+    <div class="product-media">${photo ? `<img class="product-image" src="${photo}" alt="${esc(p.name)}" loading="lazy" />` : `<div class="product-image placeholder" aria-hidden="true">♡</div>`}${promotion ? '<span class="promo-badge">Oferta</span>' : ''}</div>
     <div class="card-body">
       <div class="pills">${p.brand ? `<span class="pill">${esc(p.brand)}</span>` : ''}${p.category ? `<span class="pill">${esc(p.category)}</span>` : ''}</div>
       <h3>${esc(p.name)}</h3>
-      <div class="price-row"><span class="price">${money.format(Number(p.price || 0))}</span><span class="stock">${p.quantity} disponível${p.quantity === 1 ? '' : 'is'}</span></div>
+      <div class="price-row"><div class="price-group">${promotion ? `<span class="original-price"><span class="sr-only">De </span>${money.format(Number(p.price))}</span><span class="price promo-price"><span class="sr-only">Por </span>${money.format(Number(p.promotional_price))}</span>` : `<span class="price">${money.format(Number(p.price || 0))}</span>`}</div><span class="stock">${p.quantity} disponível${p.quantity === 1 ? '' : 'is'}</span></div>
       ${whatsappAction}
     </div>
   </article>`
@@ -461,9 +544,12 @@ async function renderDashboard() {
 
 function adminProductRow(p) {
   const photo = imageUrl(p.image_path)
+  const priceSummary = hasPromotion(p)
+    ? `<s>${money.format(Number(p.price))}</s> <strong class="admin-promo-price">${money.format(Number(p.promotional_price))}</strong>`
+    : money.format(Number(p.price || 0))
   return `<div class="admin-product${p.active ? '' : ' admin-product-inactive'}">
     ${photo ? `<img class="admin-thumb" src="${photo}" alt="" loading="lazy" />` : `<div class="admin-thumb placeholder" aria-hidden="true">♡</div>`}
-    <div><h4>${esc(p.name)}</h4><p>${esc(p.brand || '')}${p.category ? ` · ${esc(p.category)}` : ''} · ${money.format(Number(p.price || 0))} · <strong>${p.quantity} un.</strong>${p.active ? '' : ' · inativo'}</p></div>
+    <div><h4>${esc(p.name)}</h4><p>${esc(p.brand || '')}${p.category ? ` · ${esc(p.category)}` : ''} · ${priceSummary} · <strong>${p.quantity} un.</strong>${p.active ? '' : ' · inativo'}</p></div>
     <div class="stock-actions">
       <button class="btn btn-secondary" type="button" data-action="add" data-id="${p.id}">+ Chegou 1</button>
       <button class="btn btn-primary" type="button" data-action="sell" data-id="${p.id}" ${p.quantity < 1 ? 'disabled' : ''}>− Vendi 1</button>
@@ -484,6 +570,7 @@ function showProductForm(product = null) {
       <label>Marca<input class="control" name="brand" maxlength="80" placeholder="Natura" value="${esc(product?.brand || '')}" /></label>
       <label>Categoria<input class="control" name="category" maxlength="80" placeholder="Perfume" value="${esc(product?.category || '')}" /></label>
       <label>Preço<input class="control" name="price" inputmode="decimal" maxlength="11" required value="${product ? Number(product.price).toFixed(2).replace('.', ',') : ''}" placeholder="119,90" /></label>
+      <label><span class="label-title">Preço promocional <small class="optional-label">opcional</small></span><input class="control" name="promotional_price" inputmode="decimal" maxlength="11" value="${product?.promotional_price != null ? Number(product.promotional_price).toFixed(2).replace('.', ',') : ''}" placeholder="99,90" /><small>Deixe vazio quando o produto não estiver em promoção.</small></label>
       <label>Estoque inicial<input class="control" name="quantity" type="number" min="0" max="2147483647" step="1" required value="${product?.quantity ?? 1}" ${product ? 'disabled' : ''} /></label>
       <label class="span-2">Foto<input class="control" name="photo" type="file" accept="image/*" capture="environment" /><small>A imagem será reduzida antes do envio para economizar espaço.</small></label>
       ${product?.image_path ? `<label class="span-2 checkbox-control"><input name="remove_photo" type="checkbox" /> Remover a foto atual sem substituí-la</label>` : ''}
@@ -551,6 +638,7 @@ function productMatchesPayload(row, payload) {
     && (row.brand || null) === payload.brand
     && (row.category || null) === payload.category
     && Number(row.price) === Number(payload.price)
+    && (row.promotional_price == null ? null : Number(row.promotional_price)) === (payload.promotional_price == null ? null : Number(payload.promotional_price))
     && (row.image_path || null) === payload.image_path
     && (payload.quantity === undefined || row.quantity === payload.quantity)
 }
@@ -586,6 +674,14 @@ async function saveProduct(e, product) {
     if (!/^\d{1,8}(?:[.,]\d{1,2})?$/.test(rawPrice)) throw new Error('Informe um preço entre 0 e 99.999.999,99, com até 2 casas decimais.')
     const price = Number(rawPrice.replace(',', '.'))
 
+    const rawPromotionalPrice = String(fd.get('promotional_price') || '').trim()
+    let promotionalPrice = null
+    if (rawPromotionalPrice) {
+      if (!/^\d{1,8}(?:[.,]\d{1,2})?$/.test(rawPromotionalPrice)) throw new Error('O preço promocional deve ser um valor válido com até 2 casas decimais.')
+      promotionalPrice = Number(rawPromotionalPrice.replace(',', '.'))
+      if (promotionalPrice <= 0 || promotionalPrice >= price) throw new Error('O preço promocional deve ser maior que zero e menor que o preço normal.')
+    }
+
     let quantity = null
     if (!product) {
       quantity = Number(fd.get('quantity'))
@@ -619,6 +715,7 @@ async function saveProduct(e, product) {
       brand,
       category,
       price,
+      promotional_price: promotionalPrice,
       image_path: imagePath
     }
 
@@ -627,14 +724,14 @@ async function saveProduct(e, product) {
       result = await supabase.from('products')
         .update(payload)
         .eq('id', targetId)
-        .select('id,name,brand,category,price,quantity,image_path')
+        .select('id,name,brand,category,price,promotional_price,quantity,image_path')
         .single()
     } else {
       payload.id = targetId
       payload.quantity = quantity
       result = await supabase.from('products')
         .insert(payload)
-        .select('id,name,brand,category,price,quantity,image_path')
+        .select('id,name,brand,category,price,promotional_price,quantity,image_path')
         .single()
     }
 
@@ -642,7 +739,7 @@ async function saveProduct(e, product) {
       // Uma resposta perdida pode ocorrer depois do commit. Confirme o estado antes
       // de remover o upload ou oferecer uma tentativa que duplicaria o cadastro.
       const probe = await supabase.from('products')
-        .select('id,name,brand,category,price,quantity,image_path')
+        .select('id,name,brand,category,price,promotional_price,quantity,image_path')
         .eq('id', targetId)
         .maybeSingle()
 
