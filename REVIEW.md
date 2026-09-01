@@ -54,18 +54,13 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - exportação CSV compatível com Excel/Google Planilhas neutraliza fórmulas em textos;
 - impressão fornece um resumo que pode ser salvo em PDF, sem nova dependência.
 
-## Pendente antes de chamar de “pronto para uso”
+## Pendente para a entrega à vendedora
 
 ### P0 — obrigatório
 
-- executar a versão atualizada de `supabase.sql` no projeto antes do novo frontend;
-- manter novos cadastros desabilitados no Auth — a verificação mais recente confirmou essa configuração;
-- executar `npm run verify:supabase` depois do novo SQL e exigir resultado totalmente verde;
 - executar o checklist funcional do README, incluindo enrollment e novo login com MFA, preferencialmente também em um iPhone;
 - testar compra de R$ 100,00, pagamento parcial de R$ 80,00, recusa de pagamento acima do saldo e cancelamento na caderneta;
-- confirmar que a caderneta, seus RPCs e as tabelas de clientes não respondem para acesso anônimo;
 - confirmar cadastro e login pelo autenticador reserva;
-- publicar o novo build no Cloudflare Pages e conferir os headers de resposta.
 
 ### P1 — após o primeiro teste com a vendedora
 
@@ -90,9 +85,10 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 
 ## Observação de validação
 
-Em 01/09/2026, `npm install`, `npm test`, `npm audit` e `npm run build`
-concluíram com sucesso; os 8 testes passaram e o audit encontrou zero vulnerabilidades.
-As sondagens anônimas anteriores confirmaram o bloqueio de `app_admins`, histórico e
-RPCs de estoque no projeto real. As novas tabelas/RPCs da caderneta e todos os fluxos
-autenticados AAL1/AAL2 ainda precisam ser validados depois que o `supabase.sql`
-atualizado for executado no Supabase.
+Em 01/09/2026, `npm install`, `npm test`, `npm audit`, `npm run build` e
+`npm run verify:supabase` concluíram com sucesso; os 8 testes passaram e o audit
+encontrou zero vulnerabilidades. No projeto real, as sondagens anônimas confirmaram
+o bloqueio de `app_admins`, históricos, tabelas e RPCs da caderneta, além de produtos
+inativos ou sem estoque. O build atual está publicado no Cloudflare Pages com CSP,
+bloqueio de framing e demais headers previstos. Restam somente os testes funcionais
+autenticados com a conta da vendedora e os dois autenticadores.

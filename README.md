@@ -21,7 +21,7 @@ Para a operação diária, consulte o [Guia rápido da Área da vendedora](GUIA-
 - ocultar/ativar produto sem apagar o histórico;
 - histórico das últimas movimentações;
 - produto com estoque 0 some automaticamente do catálogo público;
-- estoque atualizado de forma atômica no banco.
+- estoque atualizado de forma atômica no banco;
 - caderneta privada de clientes no mesmo painel;
 - registro de compras fiadas e pagamentos parciais;
 - saldo automático por cliente e histórico sem exclusão;

@@ -2,18 +2,20 @@
 
 Este guia mostra como cadastrar produtos, controlar o estoque e acompanhar as compras fiadas e os pagamentos dos clientes.
 
-Guarde uma cópia deste guia em uma pasta privada do Google Drive e deixe o arquivo nos favoritos do celular.
+Guarde uma cópia deste guia em uma pasta privada do Google Drive e deixe o arquivo nos favoritos do celular. A versão impressa contém o endereço da área privada e também deve ficar guardada.
 
 ## 1. Entrar no painel
 
 1. Abra o endereço salvo nos favoritos do seu celular:
 
-   `https://SEU-SITE/?acesso=6d91c4f2a7be`
+   `https://vitrine-da-iva.pages.dev/?acesso=6d91c4f2a7be`
 
 2. Digite seu e-mail e sua senha.
 3. Abra o aplicativo autenticador e informe o código de 6 números.
 
-Não compartilhe a senha nem o código do autenticador. O código muda sozinho a cada poucos segundos.
+No primeiro acesso, o site mostrará um QR Code para cadastrar o autenticador. Faça essa configuração junto com o responsável pelo site. Depois, cadastre também o **autenticador reserva** oferecido no painel e teste os dois antes de usar o sistema sozinha.
+
+O login pode ser salvo somente no Bitwarden. Nunca escreva a senha real neste guia, em agenda, mensagem ou papel. Não compartilhe a senha nem o código do autenticador; o código muda sozinho a cada poucos segundos.
 
 ## 2. Cadastrar um produto
 
@@ -103,6 +105,8 @@ O sistema não permite registrar um pagamento maior que o saldo do cliente.
 4. Se necessário, faça um novo lançamento com os dados corretos.
 
 O lançamento cancelado continua aparecendo riscado no histórico. Isso evita que uma compra ou pagamento desapareça sem deixar registro.
+
+Se uma compra já tiver um pagamento registrado, o sistema poderá pedir que o pagamento seja cancelado primeiro. Nesse caso, cancele o pagamento, cancele a compra incorreta e depois registre novamente os valores corretos.
 
 ### Guardar uma cópia
 
