@@ -26,21 +26,32 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - consultas públicas selecionam apenas os campos necessários;
 - pequenos ajustes de acessibilidade e layout mobile.
 
+### Corrigido no endurecimento posterior
+
+- cadastro e edição passaram a confirmar que o banco realmente devolveu a linha alterada;
+- troca e remoção de foto tratam respostas de rede ambíguas sem apagar uma imagem possivelmente referenciada;
+- remoção voluntária de foto foi adicionada e falhas de limpeza deixam aviso visível;
+- `adjust_stock` ganhou UUID de operação, índice único e serialização para retries idempotentes;
+- a chave idempotente é preservada no navegador até a operação ser confirmada;
+- a policy pública passou a ocultar também produtos ativos com estoque zero;
+- limites de strings e formato de `image_path` passaram a existir no PostgreSQL;
+- configuração do bucket, MIME types e limite de 5 MB passou a ser aplicada pelo SQL;
+- fluxo de MFA permite cadastrar e escolher um autenticador reserva;
+- CSP, bloqueio de framing e headers básicos foram adicionados ao deploy Cloudflare;
+- mensagens técnicas deixaram de ser expostas no catálogo e `alert()` foi removido;
+- inputs e botões foram ajustados para uso móvel e contraste básico;
+- foram adicionados testes de regressão sem novas dependências e uma verificação pública do Supabase.
+
 ## Pendente antes de chamar de “pronto para uso”
 
 ### P0 — obrigatório
 
-- criar projeto Supabase real;
-- executar `supabase.sql`;
-- criar a usuária administradora e inserir seu UUID em `app_admins`;
-- desabilitar novos cadastros no Auth;
-- criar bucket `product-images` com as restrições do README;
-- preencher `.env`;
-- executar `npm install` e `npm run build` em ambiente com acesso ao registry;
-- gerar e versionar o `package-lock.json` no primeiro `npm install`;
-- executar `npm audit` e revisar qualquer vulnerabilidade relevante antes de uso contínuo;
+- executar a versão atualizada de `supabase.sql` no projeto antes do novo frontend;
+- manter novos cadastros desabilitados no Auth — a verificação mais recente confirmou essa configuração;
+- executar `npm run verify:supabase` depois do novo SQL e exigir resultado totalmente verde;
 - executar o checklist funcional do README, incluindo enrollment e novo login com MFA, preferencialmente também em um iPhone;
-- fazer primeiro deploy no Cloudflare Pages.
+- confirmar cadastro e login pelo autenticador reserva;
+- publicar o novo build no Cloudflare Pages e conferir os headers de resposta.
 
 ### P1 — após o primeiro teste com a vendedora
 
@@ -50,7 +61,7 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - adicionar recuperação de senha ou documentar o procedimento de reset;
 - considerar PWA (“Adicionar à Tela de Início”) se ela usar o painel diariamente;
 - considerar exportação CSV/backup simples;
-- definir estratégia de recuperação de MFA (segundo fator de backup ou procedimento administrativo documentado).
+- documentar o procedimento administrativo de reset de senha e de MFA.
 
 ### P2 — somente se houver demanda real
 
@@ -65,4 +76,8 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 
 ## Observação de validação
 
-A revisão de código e segurança foi feita estaticamente. A instalação de dependências no ambiente de revisão não concluiu por indisponibilidade/timeout do registry, portanto o build Vite e a integração real com Supabase ainda precisam ser executados no primeiro ambiente com rede (máquina local, GitHub/Cloudflare ou Codex).
+Em 31/08/2026, `npm install`, `npm test`, `npm audit` e `npm run build`
+concluíram com sucesso; o audit encontrou zero vulnerabilidades. As sondagens anônimas
+confirmaram bloqueio de `app_admins`, histórico e RPCs administrativas no projeto
+real. Os fluxos autenticados AAL1/AAL2 e as alterações do novo SQL ainda precisam ser
+validados com a conta administradora depois que o arquivo for executado no Supabase.
