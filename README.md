@@ -2,8 +2,7 @@
 
 MVP simples para uma revendedora controlar produtos à pronta entrega e compartilhar um catálogo público com clientes.
 
-Para a operação diária, consulte o [Guia rápido da Área da vendedora](GUIA-DA-VENDEDORA.md).
-Para entregar em papel, abra a [versão pronta para imprimir em PDF](GUIA-DA-VENDEDORA.pdf).
+Para preparar o material da vendedora, copie o [modelo do guia](GUIA-DA-VENDEDORA.example.md), preencha o endereço reservado somente na cópia local e mantenha o guia real e o PDF fora do Git.
 
 ## O que já faz
 

@@ -1,14 +1,18 @@
-# Guia rápido da Área da vendedora
+# Modelo do guia rápido da Área da vendedora
+
+> Este arquivo é público e serve apenas como modelo. Faça uma cópia chamada
+> `GUIA-DA-VENDEDORA.md`, preencha o endereço reservado somente nessa cópia local
+> e nunca coloque senha, e-mail de acesso ou código do autenticador no guia.
 
 Este guia mostra como cadastrar produtos, controlar o estoque e acompanhar as compras fiadas e os pagamentos dos clientes.
 
-Guarde uma cópia deste guia em uma pasta privada do Google Drive e deixe o arquivo nos favoritos do celular. A versão impressa contém o endereço da área privada e também deve ficar guardada.
+Guarde uma cópia preenchida deste guia em uma pasta privada do Google Drive e deixe o endereço nos favoritos do celular. A versão impressa contém o endereço da área privada e também deve ficar guardada.
 
 ## 1. Entrar no painel
 
 1. Abra o endereço salvo nos favoritos do seu celular:
 
-   `https://vitrine-da-iva.pages.dev/?acesso=6d91c4f2a7be`
+   `https://SEU-SITE/?acesso=SEU-CODIGO-PRIVADO`
 
 2. Digite seu e-mail e sua senha.
 3. Abra o aplicativo autenticador e informe o código de 6 números.

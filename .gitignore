@@ -4,3 +4,8 @@
 node_modules/
 dist/
 .DS_Store
+
+# Guia operacional privado: pode conter o endereço reservado do painel.
+GUIA-DA-VENDEDORA.md
+GUIA-DA-VENDEDORA.html
+GUIA-DA-VENDEDORA.pdf
