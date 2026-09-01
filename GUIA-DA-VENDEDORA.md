@@ -2,6 +2,8 @@
 
 Este guia mostra como cadastrar produtos, controlar o estoque e acompanhar as compras fiadas e os pagamentos dos clientes.
 
+Guarde uma cópia deste guia em uma pasta privada do Google Drive e deixe o arquivo nos favoritos do celular.
+
 ## 1. Entrar no painel
 
 1. Abra o endereço salvo nos favoritos do seu celular:
@@ -111,6 +113,41 @@ O lançamento cancelado continua aparecendo riscado no histórico. Isso evita qu
 Os arquivos exportados contêm nomes, telefones e valores. Não envie em grupos nem deixe a pasta do Drive pública.
 
 O WhatsApp continua sendo usado para conversar com os clientes. O Gmail pode ser usado para mensagens de fornecedores e recuperação de acesso. Nunca envie senha ou código do autenticador para ninguém.
+
+## 8. Pedir ajuda ao ChatGPT
+
+O ChatGPT pode explicar um passo esquecido, ajudar a entender uma mensagem de erro ou preparar um texto para o WhatsApp. Ele não enxerga o painel nem sabe o que aconteceu na tela até você explicar.
+
+Ao pedir ajuda:
+
+1. Diga se está na aba **Estoque** ou **Caderneta**.
+2. Explique o que estava tentando fazer.
+3. Escreva o nome do botão e a mensagem que apareceu.
+4. Peça uma orientação curta, um passo de cada vez e sem apagar dados.
+
+Você pode copiar e completar esta mensagem:
+
+> Estou usando a Área da vendedora da minha loja. Estou na aba **[Estoque ou Caderneta]** e quero **[o que deseja fazer]**. Ao tocar em **[nome do botão]**, apareceu **[mensagem da tela]**. Não tenho conhecimento técnico. Explique o que posso conferir em passos curtos, sem apagar nem alterar dados que já foram registrados.
+
+Para lembrar como fazer uma tarefa:
+
+> Vou colar abaixo uma parte do guia da Área da vendedora. Explique em passos bem simples como registrar **[uma compra fiada / um pagamento parcial / uma entrada no estoque / uma venda]**. Use somente os botões citados no texto e faça uma pergunta se faltar alguma informação.
+
+Depois dessa mensagem, copie somente a parte correspondente deste guia. O guia não contém dados de clientes e pode ser usado como contexto.
+
+Para preparar uma cobrança educada pelo WhatsApp:
+
+> Escreva uma mensagem curta, educada e sem ameaças para lembrar um cliente de um pagamento pendente. Use os campos **[NOME]** e **[VALOR]**; eu preencherei esses dados somente depois de copiar a mensagem.
+
+### O que nunca enviar ao ChatGPT
+
+- senha, e-mail de acesso ou código de 6 números do autenticador;
+- conteúdo do arquivo `.env`, chaves ou configurações do Supabase;
+- nome completo, telefone, recibo ou histórico de compra de um cliente;
+- arquivo Excel/PDF exportado da caderneta;
+- foto da tela sem antes esconder os dados pessoais.
+
+Em exemplos, escreva **Cliente A** e use valores inventados. Se a orientação pedir para executar SQL, apagar registros, mudar a segurança ou fornecer uma chave, pare e fale com o responsável pelo site.
 
 ## Se algo não funcionar
 
