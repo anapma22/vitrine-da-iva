@@ -17,6 +17,13 @@ No primeiro acesso, o site mostrará um QR Code para cadastrar o autenticador. F
 
 O login pode ser salvo somente no Bitwarden. Nunca escreva a senha real neste guia, em agenda, mensagem ou papel. Não compartilhe a senha nem o código do autenticador; o código muda sozinho a cada poucos segundos.
 
+Antes de usar o sistema sozinha, confirme:
+
+- [ ] endereço salvo nos favoritos do celular;
+- [ ] senha real salva somente no Bitwarden;
+- [ ] autenticador principal testado depois de sair e entrar novamente;
+- [ ] autenticador reserva também testado.
+
 ## 2. Cadastrar um produto
 
 1. Toque em **+ Adicionar produto**.

@@ -3,6 +3,7 @@
 MVP simples para uma revendedora controlar produtos à pronta entrega e compartilhar um catálogo público com clientes.
 
 Para a operação diária, consulte o [Guia rápido da Área da vendedora](GUIA-DA-VENDEDORA.md).
+Para entregar em papel, abra a [versão pronta para imprimir em PDF](GUIA-DA-VENDEDORA.pdf).
 
 ## O que já faz
 

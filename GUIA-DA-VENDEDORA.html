@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Guia rápido da Área da vendedora</title>
+    <style>
+      :root {
+        font-family: Arial, Helvetica, sans-serif;
+        color: #26332e;
+        background: #eef2ee;
+        font-synthesis: none;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; line-height: 1.55; }
+      main { width: min(820px, calc(100% - 32px)); margin: 24px auto; padding: 38px 44px; background: #fff; box-shadow: 0 10px 34px rgba(38, 51, 46, .1); }
+      h1 { margin: 0 0 8px; color: #275646; font-size: 2rem; line-height: 1.15; }
+      h2 { margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #dfe8e2; color: #275646; font-size: 1.35rem; break-after: avoid; }
+      h3 { margin: 24px 0 8px; color: #315b4c; font-size: 1.05rem; break-after: avoid; }
+      p { margin: 8px 0; }
+      ol, ul { margin: 8px 0 12px; padding-left: 24px; }
+      li { margin: 4px 0; }
+      code { padding: 2px 5px; border-radius: 5px; background: #edf3ef; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+      .intro { color: #586860; font-size: 1.03rem; }
+      .private-note, .important, .tip { padding: 12px 14px; margin: 14px 0; border-radius: 9px; break-inside: avoid; }
+      .private-note { border: 1px solid #e3c4b8; background: #fff5f1; color: #713f31; }
+      .important { border-left: 5px solid #316b59; background: #edf5f0; }
+      .tip { border: 1px solid #eadb9a; background: #fff9e4; }
+      .checklist { padding: 14px 16px; margin: 16px 0; border: 1px solid #cbdcd2; border-radius: 10px; background: #f6faf7; break-inside: avoid; }
+      .checklist h3 { margin-top: 0; }
+      .checklist ul { padding: 0; list-style: none; }
+      .checklist li::before { content: "☐"; margin-right: 8px; font-size: 1.1rem; }
+      blockquote { margin: 12px 0; padding: 12px 15px; border-left: 4px solid #799b8c; background: #f5f8f6; color: #384a42; break-inside: avoid; }
+      blockquote p { margin: 0; }
+      .rule { padding: 14px; margin-top: 28px; border: 2px solid #316b59; border-radius: 10px; color: #275646; font-weight: 700; break-inside: avoid; }
+      .print-actions { display: flex; justify-content: center; gap: 10px; margin: 18px 0; }
+      .print-actions button { min-height: 44px; padding: 10px 18px; border: 0; border-radius: 9px; color: #fff; background: #316b59; font: inherit; font-weight: 700; cursor: pointer; }
+      @page { size: A4; margin: 14mm; }
+      @media print {
+        :root { background: #fff; }
+        body { font-size: 10.5pt; }
+        main { width: auto; margin: 0; padding: 0; box-shadow: none; }
+        h1 { font-size: 22pt; }
+        h2 { margin-top: 22px; font-size: 15pt; }
+        h3 { margin-top: 16px; font-size: 11.5pt; }
+        .print-actions { display: none; }
+        a { color: inherit; text-decoration: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="print-actions"><button type="button" onclick="window.print()">Imprimir ou salvar em PDF</button></div>
+    <main>
+      <h1>Guia rápido da Área da vendedora</h1>
+      <p class="intro">Como cadastrar produtos, controlar o estoque e acompanhar compras fiadas e pagamentos dos clientes.</p>
+      <p class="private-note"><strong>Documento privado:</strong> guarde esta cópia em uma pasta privada do Google Drive. A versão impressa contém o endereço da área da vendedora e também deve ficar guardada.</p>
+
+      <h2>1. Entrar no painel</h2>
+      <ol>
+        <li>Abra o endereço salvo nos favoritos do celular:<br /><code>https://vitrine-da-iva.pages.dev/?acesso=6d91c4f2a7be</code></li>
+        <li>Digite seu e-mail e sua senha.</li>
+        <li>Abra o aplicativo autenticador e informe o código de 6 números.</li>
+      </ol>
+      <p>No primeiro acesso, o site mostrará um QR Code para cadastrar o autenticador. Faça essa configuração junto com o responsável pelo site. Depois, cadastre também o <strong>autenticador reserva</strong> oferecido no painel e teste os dois.</p>
+      <p class="important">O login pode ser salvo somente no Bitwarden. Nunca escreva a senha real neste guia, em agenda, mensagem ou papel. Não compartilhe a senha nem o código do autenticador.</p>
+      <div class="checklist">
+        <h3>Antes de usar o sistema sozinha</h3>
+        <ul>
+          <li>Endereço salvo nos favoritos do celular.</li>
+          <li>Senha real salva somente no Bitwarden.</li>
+          <li>Autenticador principal testado após sair e entrar novamente.</li>
+          <li>Autenticador reserva também testado.</li>
+        </ul>
+      </div>
+
+      <h2>2. Cadastrar um produto</h2>
+      <ol>
+        <li>Toque em <strong>+ Adicionar produto</strong>.</li>
+        <li>Preencha nome, marca, categoria e preço normal.</li>
+        <li>Se estiver em oferta, informe o <strong>Preço promocional</strong>, sempre menor que o normal. Caso contrário, deixe vazio.</li>
+        <li>Informe quantas unidades chegaram.</li>
+        <li>Escolha uma foto da galeria ou tire uma foto.</li>
+        <li>Toque em <strong>Salvar</strong>.</li>
+      </ol>
+      <p class="tip">Para produtos com tamanho ou cor, coloque a informação no nome. Exemplo: <strong>Sutiã Demillus Preto 44</strong>.</p>
+
+      <h2>3. Editar um produto</h2>
+      <ol>
+        <li>Encontre o produto e toque em <strong>Editar</strong>.</li>
+        <li>Altere nome, marca, categoria, preços ou foto.</li>
+        <li>Toque em <strong>Salvar</strong>.</li>
+      </ol>
+      <p>Para encerrar uma promoção, apague o preço promocional e salve.</p>
+
+      <h2>4. Atualizar o estoque</h2>
+      <ul>
+        <li>Quando chegar uma unidade, toque em <strong>+ Chegou 1</strong>.</li>
+        <li>Quando vender uma unidade, toque em <strong>− Vendi 1</strong> e confirme.</li>
+        <li>Para várias unidades, toque uma vez para cada unidade.</li>
+      </ul>
+      <p>Cada alteração aparece em <strong>Últimas movimentações</strong>. Quando o estoque chega a zero, o produto some do catálogo, mas continua no painel.</p>
+
+      <h2>5. Trocar ou remover uma foto</h2>
+      <ul>
+        <li><strong>Trocar:</strong> toque em Editar, escolha uma nova foto e salve.</li>
+        <li><strong>Remover:</strong> toque em Editar, marque <strong>Remover a foto atual</strong> e salve.</li>
+      </ul>
+      <p>Use uma foto clara, com o produto centralizado e sem informações pessoais ao fundo.</p>
+
+      <h2>6. Ocultar ou reativar um produto</h2>
+      <ul>
+        <li>Toque em <strong>Ocultar</strong> quando não quiser mostrar o produto.</li>
+        <li>Toque em <strong>Ativar</strong> para mostrá-lo novamente.</li>
+      </ul>
+      <p>Ocultar não apaga o produto nem seu histórico.</p>
+
+      <h2>7. Usar a caderneta de clientes</h2>
+      <p>No alto do painel existem duas opções:</p>
+      <ul>
+        <li><strong>Estoque:</strong> produtos e quantidades disponíveis.</li>
+        <li><strong>Caderneta:</strong> compras fiadas, pagamentos e saldos.</li>
+      </ul>
+      <p>Somente quem entrou com e-mail, senha e código do autenticador consegue abrir a caderneta.</p>
+
+      <h3>Cadastrar um cliente</h3>
+      <ol>
+        <li>Abra <strong>Caderneta</strong> e toque em <strong>+ Cliente</strong>.</li>
+        <li>Informe o nome e, se quiser, o WhatsApp com DDD e uma observação curta.</li>
+        <li>Toque em <strong>Salvar cliente</strong>.</li>
+      </ol>
+
+      <h3>Registrar uma compra para pagar depois</h3>
+      <ol>
+        <li>Encontre o cliente e toque em <strong>+ Compra fiada</strong>.</li>
+        <li>Informe o valor, a data e o que foi comprado.</li>
+        <li>Toque em <strong>Registrar compra</strong>.</li>
+      </ol>
+      <p class="important">Se a compra retirou um produto da pronta entrega, abra também <strong>Estoque</strong> e toque em <strong>− Vendi 1</strong>. A caderneta controla o dinheiro; o estoque controla as unidades.</p>
+
+      <h3>Registrar um pagamento</h3>
+      <ol>
+        <li>Encontre o cliente e toque em <strong>Registrar pagamento</strong>.</li>
+        <li>Informe somente o valor recebido naquele momento.</li>
+        <li>Se quiser, escreva Pix, dinheiro ou outra observação.</li>
+        <li>Toque em <strong>Confirmar pagamento</strong>.</li>
+      </ol>
+      <p>Exemplo: para uma compra de <strong>R$ 100,00</strong> com pagamento de <strong>R$ 80,00</strong>, registre primeiro a compra e depois o pagamento. O saldo aparecerá como <strong>R$ 20,00</strong>.</p>
+      <p>O sistema não permite registrar um pagamento maior que o saldo.</p>
+
+      <h3>Corrigir um lançamento errado</h3>
+      <ol>
+        <li>Toque em <strong>Ver histórico</strong> no cliente.</li>
+        <li>Encontre o lançamento, toque em <strong>Cancelar</strong> e confirme.</li>
+        <li>Se necessário, registre novamente com os dados corretos.</li>
+      </ol>
+      <p>O lançamento cancelado continua riscado no histórico. Se uma compra já tiver pagamento, cancele primeiro o pagamento, depois a compra incorreta e então registre os valores corretos.</p>
+
+      <h3>Guardar uma cópia</h3>
+      <ul>
+        <li><strong>Exportar Excel:</strong> baixa a caderneta completa para Excel ou Google Planilhas.</li>
+        <li><strong>Salvar resumo em PDF:</strong> abre a tela de impressão para salvar o resumo.</li>
+        <li>Guarde as cópias em pasta privada no Google Drive, por exemplo uma vez por mês.</li>
+      </ul>
+      <p class="private-note">Os arquivos exportados contêm nomes, telefones e valores. Não envie em grupos nem deixe a pasta pública.</p>
+
+      <h2>8. Pedir ajuda ao ChatGPT</h2>
+      <p>O ChatGPT pode explicar um passo esquecido, ajudar a entender uma mensagem de erro ou preparar um texto para o WhatsApp. Ele só sabe o que você explicar.</p>
+      <ol>
+        <li>Diga se está em <strong>Estoque</strong> ou <strong>Caderneta</strong>.</li>
+        <li>Explique o que estava tentando fazer.</li>
+        <li>Escreva o nome do botão e a mensagem exibida.</li>
+        <li>Peça orientação curta, um passo de cada vez e sem apagar dados.</li>
+      </ol>
+
+      <h3>Mensagem pronta para pedir ajuda</h3>
+      <blockquote><p>Estou usando a Área da vendedora da minha loja. Estou na aba <strong>[Estoque ou Caderneta]</strong> e quero <strong>[o que deseja fazer]</strong>. Ao tocar em <strong>[nome do botão]</strong>, apareceu <strong>[mensagem da tela]</strong>. Não tenho conhecimento técnico. Explique o que posso conferir em passos curtos, sem apagar nem alterar dados registrados.</p></blockquote>
+
+      <h3>Mensagem pronta para lembrar uma tarefa</h3>
+      <blockquote><p>Vou colar abaixo uma parte do guia da Área da vendedora. Explique em passos simples como registrar <strong>[uma compra fiada / um pagamento parcial / uma entrada no estoque / uma venda]</strong>. Use somente os botões citados e faça uma pergunta se faltar informação.</p></blockquote>
+
+      <h3>Mensagem pronta para uma cobrança educada</h3>
+      <blockquote><p>Escreva uma mensagem curta, educada e sem ameaças para lembrar um cliente de um pagamento pendente. Use os campos <strong>[NOME]</strong> e <strong>[VALOR]</strong>; eu preencherei somente depois de copiar a mensagem.</p></blockquote>
+
+      <h3>O que nunca enviar ao ChatGPT</h3>
+      <ul>
+        <li>Senha, e-mail de acesso ou código do autenticador.</li>
+        <li>Arquivo <code>.env</code>, chaves ou configurações do Supabase.</li>
+        <li>Nome completo, telefone, recibo ou histórico de compra de cliente.</li>
+        <li>Arquivo Excel/PDF exportado da caderneta.</li>
+        <li>Foto da tela sem esconder os dados pessoais.</li>
+      </ul>
+      <p>Em exemplos, escreva <strong>Cliente A</strong> e use valores inventados. Se a orientação pedir SQL, exclusão de registros, mudança de segurança ou alguma chave, pare e fale com o responsável pelo site.</p>
+
+      <h2>Se algo não funcionar</h2>
+      <ol>
+        <li>Confira a conexão com a internet.</li>
+        <li>Atualize a página e tente novamente.</li>
+        <li>Se o autenticador falhar, espere o próximo código.</li>
+        <li>Antes de repetir uma operação, confira o histórico.</li>
+        <li>Se continuar, esconda os dados pessoais, tire uma captura da tela e envie ao responsável pelo site.</li>
+      </ol>
+
+      <p class="rule">Regra principal: Estoque controla as unidades; Caderneta controla o que cada cliente deve e pagou. Use os dois quando uma venda fiada retirar um produto da pronta entrega.</p>
+    </main>
+  </body>
+</html>
