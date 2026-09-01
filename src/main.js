@@ -31,12 +31,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+const dateOnly = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
 const esc = (value = '') => String(value).replace(/[&<>'"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]))
 const hasPromotion = product => product?.promotional_price != null
   && Number.isFinite(Number(product.promotional_price))
   && Number(product.promotional_price) > 0
   && Number(product.promotional_price) < Number(product.price)
 let pendingAdminNotice = null
+let activeAdminView = 'stock'
+let selectedCreditCustomerId = null
 
 const SAFE_ERROR_FRAGMENTS = [
   'Estoque insuficiente',
@@ -59,7 +62,24 @@ const SAFE_ERROR_FRAGMENTS = [
   'A foto original é muito grande',
   'Não consegui ler esta foto',
   'Não foi possível preparar a foto',
-  'A foto preparada ultrapassou'
+  'A foto preparada ultrapassou',
+  'Informe o nome do cliente',
+  'O nome do cliente deve ter no máximo',
+  'Informe um WhatsApp válido',
+  'A observação deve ter no máximo',
+  'Cliente e identificador da operação são obrigatórios',
+  'Tipo de lançamento inválido',
+  'Informe um valor válido',
+  'A data do lançamento não pode estar no futuro',
+  'A descrição deve ter no máximo',
+  'Informe o que foi comprado',
+  'Cliente não encontrado',
+  'Este cliente não possui saldo em aberto',
+  'O pagamento não pode ser maior que o saldo em aberto',
+  'Identificador de lançamento já utilizado',
+  'Lançamento não encontrado',
+  'Este lançamento já foi cancelado',
+  'Cancele primeiro os pagamentos ligados a esta compra'
 ]
 
 function friendlyError(error, fallback) {
@@ -99,7 +119,7 @@ function imageUrl(path) {
 
 function header(admin = false) {
   return `<header class="header">
-    <div class="brand"><h1>${esc(STORE_NAME)}</h1><p>${admin ? 'Controle de estoque' : 'Produtos disponíveis agora'}</p></div>
+    <div class="brand"><h1>${esc(STORE_NAME)}</h1><p>${admin ? 'Estoque e caderneta' : 'Produtos disponíveis agora'}</p></div>
     ${admin ? '<a class="admin-link" href="/">Ver catálogo</a>' : ''}
   </header>`
 }
@@ -108,18 +128,19 @@ function catalogIntro() {
   return `<section class="hero">
     <div class="hero-copy">
       <span class="hero-kicker">Escolhas para você</span>
-      <h2>Um catálogo bonito, simples e feito para você</h2>
-      <p>Perfumes, cuidados pessoais e lingerie à pronta entrega, com atendimento direto pelo WhatsApp.</p>
+      <h2>Beleza, cuidado e presentes para todos os momentos</h2>
+      <p>Perfumes, maquiagens, cuidados pessoais e lingerie à pronta entrega, com opções por encomenda e atendimento direto pelo WhatsApp.</p>
       <a class="btn btn-primary hero-cta" href="#catalog-products">Explorar produtos <span aria-hidden="true">↓</span></a>
     </div>
-    <div class="hero-visual" aria-hidden="true">
-      <div class="hero-glow"></div>
-      <div class="hero-availability"><span>Disponível</span><strong>agora</strong></div>
-      <div class="showcase-card showcase-perfume"><span>01</span><strong>Perfumaria</strong></div>
-      <div class="showcase-card showcase-care"><span>02</span><strong>Corpo &amp; banho</strong></div>
-      <div class="showcase-card showcase-fashion"><span>03</span><strong>Moda íntima</strong></div>
-      <div class="showcase-card showcase-makeup"><span>04</span><strong>Maquiagens</strong></div>
-      <div class="showcase-card showcase-orders"><span>05</span><strong>Encomendas</strong></div>
+    <div class="hero-visual">
+      <p class="hero-availability"><span aria-hidden="true"></span>Disponível agora</p>
+      <ol class="showcase-list">
+        <li><span>01</span><strong>Perfumaria</strong></li>
+        <li><span>02</span><strong>Corpo &amp; banho</strong></li>
+        <li><span>03</span><strong>Moda íntima</strong></li>
+        <li><span>04</span><strong>Maquiagens</strong></li>
+        <li><span>05</span><strong>Encomendas</strong></li>
+      </ol>
     </div>
   </section>
   <section class="brand-showcase" aria-labelledby="featured-brands-title">
@@ -478,8 +499,32 @@ function renderLogin(message = '') {
   })
 }
 
-async function renderDashboard() {
-  app.innerHTML = `<main class="shell">${header(true)}<div class="loading" role="status">Carregando estoque…</div></main>`
+function adminNavigation(activeView) {
+  return `<nav class="admin-tabs" aria-label="Seções da área da vendedora">
+    <button class="admin-tab${activeView === 'stock' ? ' is-active' : ''}" type="button" data-admin-view="stock" aria-pressed="${activeView === 'stock'}">Estoque</button>
+    <button class="admin-tab${activeView === 'credit' ? ' is-active' : ''}" type="button" data-admin-view="credit" aria-pressed="${activeView === 'credit'}">Caderneta</button>
+  </nav>`
+}
+
+function bindAdminChrome() {
+  document.querySelector('#logout')?.addEventListener('click', async () => {
+    await supabase.auth.signOut()
+    renderLogin()
+  })
+  document.querySelector('#add-mfa-factor')?.addEventListener('click', () => renderMfaEnrollment({ backup: true }))
+  document.querySelectorAll('[data-admin-view]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.adminView !== activeAdminView) renderDashboard(button.dataset.adminView)
+  }))
+}
+
+async function renderDashboard(view = activeAdminView) {
+  activeAdminView = view === 'credit' ? 'credit' : 'stock'
+  if (activeAdminView === 'credit') return renderCreditDashboard()
+  return renderStockDashboard()
+}
+
+async function renderStockDashboard() {
+  app.innerHTML = `<main class="shell" data-admin-screen>${header(true)}${adminNavigation('stock')}<div class="loading" role="status">Carregando estoque…</div></main>`
 
   const [{ data: products, error: productError }, { data: movements, error: movementError }] = await Promise.all([
     supabase.from('products').select('*').order('created_at', { ascending: false }),
@@ -488,7 +533,8 @@ async function renderDashboard() {
 
   if (productError || movementError) {
     console.error('Erro ao carregar o painel:', productError || movementError)
-    app.innerHTML = `<main class="shell">${header(true)}<div class="error" role="alert">Não foi possível carregar o painel. Tente novamente em instantes.</div></main>`
+    app.innerHTML = `<main class="shell" data-admin-screen>${header(true)}${adminNavigation('stock')}<div class="error" role="alert">Não foi possível carregar o painel. Tente novamente em instantes.</div></main>`
+    bindAdminChrome()
     return
   }
 
@@ -500,8 +546,9 @@ async function renderDashboard() {
   const notice = pendingAdminNotice
   pendingAdminNotice = null
 
-  app.innerHTML = `<main class="shell">
+  app.innerHTML = `<main class="shell" data-admin-screen>
     ${header(true)}
+    ${adminNavigation('stock')}
     <div class="admin-actions"><span class="security-status">✓ MFA ativo</span><button id="add-mfa-factor" class="btn btn-secondary" type="button">+ Autenticador reserva</button><button id="logout" class="btn btn-secondary" type="button">Sair</button></div>
     <div id="admin-feedback" class="admin-feedback ${notice ? (notice.type === 'error' ? 'feedback-error' : 'notice') : 'hidden'}" role="${notice?.type === 'error' ? 'alert' : 'status'}" aria-live="polite">${notice ? esc(notice.message) : ''}</div>
     <section class="stats">
@@ -522,11 +569,7 @@ async function renderDashboard() {
     </section>
   </main>`
 
-  document.querySelector('#logout').addEventListener('click', async () => {
-    await supabase.auth.signOut()
-    renderLogin()
-  })
-  document.querySelector('#add-mfa-factor').addEventListener('click', () => renderMfaEnrollment({ backup: true }))
+  bindAdminChrome()
   document.querySelector('#new-product').addEventListener('click', () => showProductForm())
   document.querySelectorAll('[data-action="sell"]').forEach(btn => btn.addEventListener('click', () => {
     const product = allProducts.find(item => item.id === btn.dataset.id)
@@ -540,6 +583,453 @@ async function renderDashboard() {
     if (product?.active && !window.confirm(`Ocultar “${product.name}” do catálogo?`)) return
     toggleProduct(product, btn)
   }))
+}
+
+function localDateValue(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatDateValue(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return '—'
+  return dateOnly.format(new Date(`${value}T12:00:00`))
+}
+
+function normalizePhone(value) {
+  let digits = String(value || '').replace(/\D/g, '')
+  if (!digits) return null
+  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`
+  if (digits.length < 10 || digits.length > 15) throw new Error('Informe um WhatsApp válido com DDD.')
+  return digits
+}
+
+function formatPhone(value) {
+  const digits = String(value || '')
+  if (/^55\d{11}$/.test(digits)) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`
+  if (/^55\d{10}$/.test(digits)) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`
+  return digits ? `+${digits}` : ''
+}
+
+function reconcilePendingCreditOperations(transactions) {
+  try {
+    for (const transaction of transactions) {
+      const recordKey = `credit-operation:${transaction.customer_id}:${transaction.type}`
+      if (sessionStorage.getItem(recordKey) === transaction.operation_id) sessionStorage.removeItem(recordKey)
+      const cancelKey = `credit-cancel:${transaction.id}`
+      if (transaction.reversal_operation_id && sessionStorage.getItem(cancelKey) === transaction.reversal_operation_id) {
+        sessionStorage.removeItem(cancelKey)
+      }
+    }
+  } catch {
+    // A caderneta continua utilizável quando o Storage do navegador está bloqueado.
+  }
+}
+
+function creditCustomerRow(customer) {
+  const balance = Number(customer.balance || 0)
+  const phone = formatPhone(customer.phone)
+  const searchText = `${customer.customer_name} ${phone}`.toLocaleLowerCase('pt-BR')
+  return `<article class="credit-customer${selectedCreditCustomerId === customer.customer_id ? ' is-selected' : ''}" data-credit-customer data-search="${esc(searchText)}">
+    <div class="credit-customer-main">
+      <div>
+        <h4>${esc(customer.customer_name)}</h4>
+        ${phone ? `<a class="credit-phone" href="https://wa.me/${esc(customer.phone)}" target="_blank" rel="noopener noreferrer">${esc(phone)}</a>` : '<span class="credit-phone">Sem WhatsApp</span>'}
+        ${customer.notes ? `<p>${esc(customer.notes)}</p>` : ''}
+      </div>
+      <div class="credit-balance${balance > 0 ? ' has-debt' : ' is-settled'}"><span>Saldo</span><strong>${money.format(balance)}</strong></div>
+    </div>
+    <div class="credit-customer-summary"><span>Comprou: ${money.format(Number(customer.total_purchases || 0))}</span><span>Pagou: ${money.format(Number(customer.total_payments || 0))}</span></div>
+    <div class="credit-customer-actions" data-no-print>
+      <button class="btn btn-primary" type="button" data-action="credit-purchase" data-id="${customer.customer_id}">+ Compra fiada</button>
+      <button class="btn btn-secondary" type="button" data-action="credit-payment" data-id="${customer.customer_id}" ${balance <= 0 ? 'disabled' : ''}>Registrar pagamento</button>
+      <button class="btn btn-secondary" type="button" data-action="credit-history" data-id="${customer.customer_id}">Ver histórico</button>
+      <button class="btn btn-secondary" type="button" data-action="credit-edit-customer" data-id="${customer.customer_id}">Editar</button>
+    </div>
+  </article>`
+}
+
+function creditLedgerRow(transaction) {
+  const isPurchase = transaction.type === 'purchase'
+  const canceled = Boolean(transaction.reversed_at)
+  return `<article class="ledger-row${canceled ? ' is-canceled' : ''}">
+    <div class="ledger-copy">
+      <div class="ledger-title"><strong>${esc(transaction.credit_customers?.name || 'Cliente')}</strong><span>${formatDateValue(transaction.occurred_on)}</span></div>
+      <p>${isPurchase ? 'Compra fiada' : 'Pagamento recebido'}${transaction.description ? ` · ${esc(transaction.description)}` : ''}${canceled ? ' · Cancelado' : ''}</p>
+    </div>
+    <strong class="ledger-amount ${isPurchase ? 'ledger-debt' : 'ledger-payment'}">${isPurchase ? '+' : '−'} ${money.format(Number(transaction.amount || 0))}</strong>
+    ${canceled ? '' : `<button class="link-button ledger-cancel" type="button" data-no-print data-action="credit-cancel" data-id="${transaction.id}">Cancelar</button>`}
+  </article>`
+}
+
+async function renderCreditDashboard() {
+  app.innerHTML = `<main class="shell" data-admin-screen>${header(true)}${adminNavigation('credit')}<div class="loading" role="status">Carregando caderneta…</div></main>`
+
+  let transactionQuery = supabase
+    .from('credit_transactions')
+    .select('id,operation_id,customer_id,type,amount,description,occurred_on,created_at,reversed_at,reversal_operation_id,credit_customers(name,phone)')
+    .order('occurred_on', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  if (selectedCreditCustomerId) transactionQuery = transactionQuery.eq('customer_id', selectedCreditCustomerId)
+
+  const [{ data: customers, error: customerError }, { data: transactions, error: transactionError }] = await Promise.all([
+    supabase.rpc('get_credit_customer_balances'),
+    transactionQuery
+  ])
+
+  if (customerError || transactionError) {
+    console.error('Erro ao carregar a caderneta:', customerError || transactionError)
+    app.innerHTML = `<main class="shell" data-admin-screen>${header(true)}${adminNavigation('credit')}<div class="error" role="alert">Não foi possível carregar a caderneta. Confirme se o SQL atualizado foi executado no Supabase.</div></main>`
+    bindAdminChrome()
+    return
+  }
+
+  const allCustomers = customers || []
+  const recentTransactions = transactions || []
+  if (selectedCreditCustomerId && !allCustomers.some(customer => customer.customer_id === selectedCreditCustomerId)) {
+    selectedCreditCustomerId = null
+    return renderCreditDashboard()
+  }
+  reconcilePendingCreditOperations(recentTransactions)
+
+  const totalReceivable = allCustomers.reduce((sum, customer) => sum + Number(customer.balance || 0), 0)
+  const totalReceived = allCustomers.reduce((sum, customer) => sum + Number(customer.total_payments || 0), 0)
+  const customersWithDebt = allCustomers.filter(customer => Number(customer.balance || 0) > 0).length
+  const selectedCustomer = allCustomers.find(customer => customer.customer_id === selectedCreditCustomerId)
+  const notice = pendingAdminNotice
+  pendingAdminNotice = null
+
+  app.innerHTML = `<main class="shell" data-admin-screen>
+    ${header(true)}
+    ${adminNavigation('credit')}
+    <div class="admin-actions"><span class="security-status">✓ Dados protegidos por MFA</span><button id="add-mfa-factor" class="btn btn-secondary" type="button">+ Autenticador reserva</button><button id="logout" class="btn btn-secondary" type="button">Sair</button></div>
+    <div id="admin-feedback" class="admin-feedback ${notice ? (notice.type === 'error' ? 'feedback-error' : 'notice') : 'hidden'}" role="${notice?.type === 'error' ? 'alert' : 'status'}" aria-live="polite">${notice ? esc(notice.message) : ''}</div>
+    <div id="finance-report">
+      <div class="print-only"><h2>Caderneta de clientes</h2><p>Relatório emitido em ${dateTime.format(new Date())}</p></div>
+      <section class="stats finance-stats" aria-label="Resumo da caderneta">
+        <div class="stat stat-receivable"><strong>${money.format(totalReceivable)}</strong><span>total a receber</span></div>
+        <div class="stat"><strong>${money.format(totalReceived)}</strong><span>total já recebido</span></div>
+        <div class="stat"><strong>${customersWithDebt}</strong><span>${customersWithDebt === 1 ? 'cliente devendo' : 'clientes devendo'}</span></div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading">
+          <div><h3>Clientes</h3><p class="panel-intro">Registre somente compras fiadas e o dinheiro que realmente foi recebido.</p></div>
+          <div class="finance-toolbar" data-no-print><button id="export-credit" class="btn btn-secondary" type="button">Exportar Excel</button><button id="print-credit" class="btn btn-secondary" type="button">Salvar resumo em PDF</button><button id="new-credit-customer" class="btn btn-primary" type="button">+ Cliente</button></div>
+        </div>
+        <div id="credit-customer-form-wrap" class="hidden form-wrap" data-no-print></div>
+        <div id="credit-transaction-form-wrap" class="hidden form-wrap" data-no-print></div>
+        <label class="credit-search" data-no-print><span class="sr-only">Buscar cliente</span><input id="credit-search" class="control" type="search" placeholder="Buscar cliente ou WhatsApp…" /></label>
+        <div class="credit-customers">${allCustomers.length ? allCustomers.map(creditCustomerRow).join('') : '<div class="empty">Nenhum cliente cadastrado.</div>'}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-heading"><h3>${selectedCustomer ? `Histórico de ${esc(selectedCustomer.customer_name)}` : 'Lançamentos recentes'}</h3>${selectedCustomer ? '<button id="all-credit-history" class="btn btn-secondary" type="button" data-no-print>Ver todos</button>' : ''}</div>
+        <div class="ledger-list">${recentTransactions.length ? recentTransactions.map(creditLedgerRow).join('') : `<div class="empty">${selectedCustomer ? 'Este cliente ainda não possui lançamentos.' : 'Nenhuma compra ou pagamento registrado.'}</div>`}</div>
+      </section>
+    </div>
+  </main>`
+
+  bindAdminChrome()
+  document.querySelector('#new-credit-customer').addEventListener('click', () => showCreditCustomerForm())
+  document.querySelector('#export-credit').addEventListener('click', event => exportCreditData(allCustomers, event.currentTarget))
+  document.querySelector('#print-credit').addEventListener('click', printCreditReport)
+  document.querySelector('#all-credit-history')?.addEventListener('click', () => {
+    selectedCreditCustomerId = null
+    renderDashboard('credit')
+  })
+  document.querySelector('#credit-search').addEventListener('input', event => {
+    const query = event.currentTarget.value.trim().toLocaleLowerCase('pt-BR')
+    document.querySelectorAll('[data-credit-customer]').forEach(row => {
+      row.classList.toggle('hidden', Boolean(query) && !row.dataset.search.includes(query))
+    })
+  })
+  document.querySelectorAll('[data-action="credit-purchase"]').forEach(button => button.addEventListener('click', () => {
+    showCreditTransactionForm(allCustomers.find(customer => customer.customer_id === button.dataset.id), 'purchase')
+  }))
+  document.querySelectorAll('[data-action="credit-payment"]').forEach(button => button.addEventListener('click', () => {
+    showCreditTransactionForm(allCustomers.find(customer => customer.customer_id === button.dataset.id), 'payment')
+  }))
+  document.querySelectorAll('[data-action="credit-history"]').forEach(button => button.addEventListener('click', () => {
+    selectedCreditCustomerId = button.dataset.id
+    renderDashboard('credit')
+  }))
+  document.querySelectorAll('[data-action="credit-edit-customer"]').forEach(button => button.addEventListener('click', () => {
+    showCreditCustomerForm(allCustomers.find(customer => customer.customer_id === button.dataset.id))
+  }))
+  document.querySelectorAll('[data-action="credit-cancel"]').forEach(button => button.addEventListener('click', () => {
+    const transaction = recentTransactions.find(item => item.id === button.dataset.id)
+    if (!transaction || !window.confirm(`Cancelar este lançamento de ${money.format(Number(transaction.amount))}? O registro continuará visível no histórico.`)) return
+    cancelCreditTransaction(transaction, button)
+  }))
+}
+
+function showCreditCustomerForm(customer = null) {
+  const wrap = document.querySelector('#credit-customer-form-wrap')
+  if (!wrap) return
+  const transactionWrap = document.querySelector('#credit-transaction-form-wrap')
+  if (transactionWrap) {
+    transactionWrap.innerHTML = ''
+    transactionWrap.classList.add('hidden')
+  }
+  wrap.classList.remove('hidden')
+  wrap.innerHTML = `<div class="subform-heading"><h4>${customer ? 'Editar cliente' : 'Novo cliente'}</h4><p>O WhatsApp e as anotações ficam visíveis somente nesta área protegida.</p></div>
+    <form id="credit-customer-form" class="form-grid">
+      <label>Nome<input class="control" name="name" required maxlength="120" value="${esc(customer?.customer_name || '')}" /></label>
+      <label>WhatsApp com DDD <small class="optional-label">opcional</small><input class="control" name="phone" type="tel" inputmode="tel" maxlength="24" placeholder="(84) 99999-9999" value="${esc(formatPhone(customer?.phone || ''))}" /></label>
+      <label class="span-2">Observação <small class="optional-label">opcional</small><textarea class="control" name="notes" maxlength="500" rows="3" placeholder="Ex.: prefere receber no começo do mês">${esc(customer?.notes || '')}</textarea></label>
+      <div class="span-2 form-actions"><button class="btn btn-primary" type="submit">Salvar cliente</button><button class="btn btn-secondary" type="button" id="cancel-credit-customer">Cancelar</button></div>
+      <div id="credit-customer-error" class="error hidden span-2" role="alert"></div>
+    </form>`
+  document.querySelector('#cancel-credit-customer').addEventListener('click', () => {
+    wrap.innerHTML = ''
+    wrap.classList.add('hidden')
+  })
+  document.querySelector('#credit-customer-form').addEventListener('submit', event => saveCreditCustomer(event, customer))
+  wrap.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+}
+
+function creditCustomerMatchesPayload(row, payload) {
+  return row
+    && row.name === payload.name
+    && (row.phone || null) === payload.phone
+    && (row.notes || null) === payload.notes
+}
+
+async function saveCreditCustomer(event, customer) {
+  event.preventDefault()
+  const form = event.currentTarget
+  const data = new FormData(form)
+  const buttons = [...form.querySelectorAll('button')]
+  const box = document.querySelector('#credit-customer-error')
+  buttons.forEach(button => { button.disabled = true })
+  box.classList.add('hidden')
+
+  try {
+    const name = String(data.get('name') || '').trim()
+    if (!name) throw new Error('Informe o nome do cliente.')
+    if (name.length > 120) throw new Error('O nome do cliente deve ter no máximo 120 caracteres.')
+    const phone = normalizePhone(data.get('phone'))
+    const notes = String(data.get('notes') || '').trim() || null
+    if (notes && notes.length > 500) throw new Error('A observação deve ter no máximo 500 caracteres.')
+
+    const targetId = customer?.customer_id || crypto.randomUUID()
+    const payload = { name, phone, notes }
+    let result
+    if (customer) {
+      result = await supabase.from('credit_customers').update(payload).eq('id', targetId).select('id,name,phone,notes').single()
+    } else {
+      result = await supabase.from('credit_customers').insert({ id: targetId, ...payload }).select('id,name,phone,notes').single()
+    }
+
+    if (result.error) {
+      const probe = await supabase.from('credit_customers').select('id,name,phone,notes').eq('id', targetId).maybeSingle()
+      if (!probe.error && creditCustomerMatchesPayload(probe.data, payload)) {
+        result = probe
+      } else if (probe.error) {
+        console.error('Não foi possível confirmar o cadastro do cliente:', result.error, probe.error)
+        queueAdminNotice('A conexão caiu durante o salvamento. Confira o cliente antes de tentar novamente.', 'error')
+        return renderDashboard('credit')
+      } else {
+        throw result.error
+      }
+    }
+
+    if (!result.data?.id) throw new Error('O cadastro do cliente não foi confirmado pelo banco.')
+    selectedCreditCustomerId = targetId
+    queueAdminNotice(customer ? 'Cliente atualizado.' : 'Cliente cadastrado.', 'notice')
+    renderDashboard('credit')
+  } catch (error) {
+    box.textContent = friendlyError(error, 'Não foi possível salvar o cliente. Confira os dados e tente novamente.')
+    box.classList.remove('hidden')
+    buttons.forEach(button => { button.disabled = false })
+  }
+}
+
+function showCreditTransactionForm(customer, type) {
+  const wrap = document.querySelector('#credit-transaction-form-wrap')
+  if (!wrap || !customer) return
+  const customerWrap = document.querySelector('#credit-customer-form-wrap')
+  if (customerWrap) {
+    customerWrap.innerHTML = ''
+    customerWrap.classList.add('hidden')
+  }
+  const isPurchase = type === 'purchase'
+  const balance = Number(customer.balance || 0)
+  wrap.classList.remove('hidden')
+  wrap.innerHTML = `<div class="subform-heading"><h4>${isPurchase ? 'Registrar compra fiada' : 'Registrar pagamento'}</h4><p>Cliente: <strong>${esc(customer.customer_name)}</strong>${isPurchase ? '' : ` · Saldo atual: <strong>${money.format(balance)}</strong>`}</p></div>
+    <form id="credit-transaction-form" class="form-grid">
+      <label>Valor<input class="control" name="amount" inputmode="decimal" maxlength="11" required placeholder="100,00" /></label>
+      <label>Data<input class="control" name="occurred_on" type="date" max="${localDateValue()}" required value="${localDateValue()}" /></label>
+      <label class="span-2">${isPurchase ? 'O que foi comprado' : 'Forma de pagamento ou observação'} <small class="optional-label">${isPurchase ? 'obrigatório' : 'opcional'}</small><input class="control" name="description" maxlength="200" ${isPurchase ? 'required' : ''} placeholder="${isPurchase ? 'Ex.: perfume Natura e hidratante' : 'Ex.: Pix ou dinheiro'}" /></label>
+      <div class="span-2 form-actions"><button class="btn btn-primary" type="submit">${isPurchase ? 'Registrar compra' : 'Confirmar pagamento'}</button><button class="btn btn-secondary" type="button" id="cancel-credit-transaction">Cancelar</button></div>
+      <div id="credit-transaction-error" class="error hidden span-2" role="alert"></div>
+    </form>`
+  document.querySelector('#cancel-credit-transaction').addEventListener('click', () => {
+    wrap.innerHTML = ''
+    wrap.classList.add('hidden')
+  })
+  document.querySelector('#credit-transaction-form').addEventListener('submit', event => saveCreditTransaction(event, customer, type))
+  wrap.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+}
+
+async function saveCreditTransaction(event, customer, type) {
+  event.preventDefault()
+  const form = event.currentTarget
+  const data = new FormData(form)
+  const buttons = [...form.querySelectorAll('button')]
+  const box = document.querySelector('#credit-transaction-error')
+  buttons.forEach(button => { button.disabled = true })
+  box.classList.add('hidden')
+
+  try {
+    const rawAmount = String(data.get('amount') || '').trim()
+    if (!/^\d{1,8}(?:[.,]\d{1,2})?$/.test(rawAmount)) throw new Error('Informe um valor válido com até 2 casas decimais.')
+    const amount = Number(rawAmount.replace(',', '.'))
+    if (amount <= 0) throw new Error('Informe um valor válido maior que zero.')
+    const description = String(data.get('description') || '').trim()
+    if (type === 'purchase' && !description) throw new Error('Informe o que foi comprado.')
+    if (description.length > 200) throw new Error('A descrição deve ter no máximo 200 caracteres.')
+    const occurredOn = String(data.get('occurred_on') || '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(occurredOn) || occurredOn > localDateValue()) throw new Error('A data do lançamento não pode estar no futuro.')
+
+    const pendingKey = `credit-operation:${customer.customer_id}:${type}`
+    let operationId = form.dataset.operationId || null
+    try { operationId = sessionStorage.getItem(pendingKey) || operationId } catch { /* dataset ainda protege esta tela */ }
+    if (!operationId) {
+      operationId = crypto.randomUUID()
+      form.dataset.operationId = operationId
+      try { sessionStorage.setItem(pendingKey, operationId) } catch { /* sem persistência entre recargas */ }
+    }
+
+    const { error } = await supabase.rpc('record_credit_transaction', {
+      p_customer_id: customer.customer_id,
+      p_type: type,
+      p_amount: amount,
+      p_description: description || null,
+      p_occurred_on: occurredOn,
+      p_operation_id: operationId
+    })
+    if (error) throw error
+
+    try { sessionStorage.removeItem(pendingKey) } catch { /* nada a limpar */ }
+    selectedCreditCustomerId = customer.customer_id
+    queueAdminNotice(type === 'purchase' ? 'Compra fiada registrada.' : 'Pagamento registrado.', 'notice')
+    renderDashboard('credit')
+  } catch (error) {
+    box.textContent = friendlyError(error, 'Não foi possível registrar o lançamento. Recarregue a caderneta e confira o histórico antes de tentar novamente.')
+    box.classList.remove('hidden')
+    buttons.forEach(button => { button.disabled = false })
+  }
+}
+
+async function cancelCreditTransaction(transaction, button) {
+  button.disabled = true
+  const pendingKey = `credit-cancel:${transaction.id}`
+  let operationId = button.dataset.operationId || null
+  try { operationId = sessionStorage.getItem(pendingKey) || operationId } catch { /* dataset ainda protege esta tela */ }
+  if (!operationId) {
+    operationId = crypto.randomUUID()
+    button.dataset.operationId = operationId
+    try { sessionStorage.setItem(pendingKey, operationId) } catch { /* sem persistência entre recargas */ }
+  }
+
+  const { error } = await supabase.rpc('cancel_credit_transaction', {
+    p_transaction_id: transaction.id,
+    p_reversal_operation_id: operationId
+  })
+  if (error) {
+    button.disabled = false
+    showAdminNotice(friendlyError(error, 'Não foi possível cancelar o lançamento. Recarregue a caderneta e confira o histórico.'))
+    return
+  }
+  try { sessionStorage.removeItem(pendingKey) } catch { /* nada a limpar */ }
+  queueAdminNotice('Lançamento cancelado sem apagar o histórico.', 'notice')
+  renderDashboard('credit')
+}
+
+async function fetchAllCreditTransactions() {
+  const pageSize = 1000
+  const transactions = []
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from('credit_transactions')
+      .select('id,customer_id,type,amount,description,occurred_on,created_at,reversed_at,credit_customers(name,phone)')
+      .order('occurred_on', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (error) throw error
+    transactions.push(...(data || []))
+    if ((data || []).length < pageSize) return transactions
+  }
+}
+
+function csvCell(value) {
+  let text = String(value ?? '')
+  if (/^[=+\-@]/.test(text)) text = `'${text}`
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function csvAmount(value) {
+  return Number(value || 0).toFixed(2).replace('.', ',')
+}
+
+async function exportCreditData(customers, button) {
+  const originalLabel = button.textContent
+  button.disabled = true
+  button.textContent = 'Preparando…'
+  try {
+    const transactions = await fetchAllCreditTransactions()
+    const lines = [
+      'sep=;',
+      csvCell('RESUMO POR CLIENTE'),
+      ['Cliente', 'WhatsApp', 'Total comprado', 'Total pago', 'Saldo atual', 'Última movimentação'].map(csvCell).join(';'),
+      ...customers.map(customer => [
+        customer.customer_name,
+        formatPhone(customer.phone),
+        csvAmount(customer.total_purchases),
+        csvAmount(customer.total_payments),
+        csvAmount(customer.balance),
+        formatDateValue(customer.last_activity_on)
+      ].map(csvCell).join(';')),
+      '',
+      csvCell('HISTÓRICO COMPLETO'),
+      ['Data', 'Cliente', 'WhatsApp', 'Tipo', 'Descrição', 'Valor', 'Situação'].map(csvCell).join(';'),
+      ...transactions.map(transaction => [
+        formatDateValue(transaction.occurred_on),
+        transaction.credit_customers?.name || 'Cliente',
+        formatPhone(transaction.credit_customers?.phone),
+        transaction.type === 'purchase' ? 'Compra fiada' : 'Pagamento',
+        transaction.description || '',
+        csvAmount(transaction.amount),
+        transaction.reversed_at ? 'Cancelado' : 'Válido'
+      ].map(csvCell).join(';'))
+    ]
+    const blob = new Blob([`\ufeff${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `caderneta-${localDateValue()}.csv`
+    document.body.append(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error) {
+    showAdminNotice(friendlyError(error, 'Não foi possível exportar a caderneta. Tente novamente.'))
+  } finally {
+    button.disabled = false
+    button.textContent = originalLabel
+  }
+}
+
+function printCreditReport() {
+  const previousTitle = document.title
+  document.body.classList.add('finance-print')
+  document.title = `Caderneta - ${STORE_NAME} - ${localDateValue()}`
+  window.print()
+  document.title = previousTitle
+  document.body.classList.remove('finance-print')
 }
 
 function adminProductRow(p) {
@@ -835,7 +1325,7 @@ async function toggleProduct(product, button) {
 }
 
 supabase.auth.onAuthStateChange((_event, session) => {
-  if (isAdminRoute && !session && document.querySelector('.admin-products')) renderLogin()
+  if (isAdminRoute && !session && document.querySelector('[data-admin-screen]')) renderLogin()
 })
 
 isAdminRoute ? renderAdmin() : renderCatalog()

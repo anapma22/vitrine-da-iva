@@ -46,6 +46,41 @@ create table if not exists public.stock_movements (
   )
 );
 
+-- Caderneta mínima: clientes e lançamentos imutáveis de compras/pagamentos.
+-- O saldo é sempre calculado pelo histórico; não existe coluna de saldo editável.
+create table if not exists public.credit_customers (
+  id uuid primary key default gen_random_uuid(),
+  name text not null constraint credit_customers_name_length_check
+    check (length(btrim(name)) between 1 and 120),
+  phone text constraint credit_customers_phone_format_check
+    check (phone is null or phone ~ '^[0-9]{10,15}$'),
+  notes text constraint credit_customers_notes_length_check
+    check (notes is null or length(notes) <= 500),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.credit_transactions (
+  id uuid primary key default gen_random_uuid(),
+  operation_id uuid not null,
+  customer_id uuid not null references public.credit_customers(id) on delete restrict,
+  type text not null check (type in ('purchase', 'payment')),
+  amount numeric(12,2) not null check (amount > 0 and amount <= 99999999.99),
+  description text constraint credit_transactions_description_length_check
+    check (description is null or length(description) <= 200),
+  occurred_on date not null default current_date,
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  reversed_at timestamptz,
+  reversed_by uuid references auth.users(id) on delete set null,
+  reversal_operation_id uuid,
+  constraint credit_transactions_reversal_check check (
+    (reversed_at is null and reversal_operation_id is null)
+    or (reversed_at is not null and reversal_operation_id is not null)
+  )
+);
+
 -- Compatibilidade com projetos que já executaram uma versão anterior do arquivo.
 -- Os blocos abaixo transformam o bootstrap também em um upgrade idempotente.
 alter table public.stock_movements
@@ -123,9 +158,24 @@ create index if not exists stock_movements_product_id_idx
 create unique index if not exists stock_movements_operation_id_idx
   on public.stock_movements (operation_id);
 
+create index if not exists credit_customers_name_idx
+  on public.credit_customers (name);
+
+create index if not exists credit_transactions_customer_date_idx
+  on public.credit_transactions (customer_id, occurred_on desc, created_at desc);
+
+create unique index if not exists credit_transactions_operation_id_idx
+  on public.credit_transactions (operation_id);
+
+create unique index if not exists credit_transactions_reversal_operation_id_idx
+  on public.credit_transactions (reversal_operation_id)
+  where reversal_operation_id is not null;
+
 alter table public.app_admins enable row level security;
 alter table public.products enable row level security;
 alter table public.stock_movements enable row level security;
+alter table public.credit_customers enable row level security;
+alter table public.credit_transactions enable row level security;
 
 -- app_admins não é exposta pela API para anon/authenticated.
 revoke all on table public.app_admins from anon, authenticated;
@@ -140,6 +190,16 @@ grant update (name, brand, category, price, promotional_price, image_path, activ
 
 revoke all on table public.stock_movements from anon, authenticated;
 grant select on table public.stock_movements to authenticated;
+
+-- Dados de clientes nunca são públicos. A administradora só escreve o cadastro;
+-- lançamentos financeiros entram exclusivamente pelas funções atômicas abaixo.
+revoke all on table public.credit_customers from anon, authenticated;
+grant select on table public.credit_customers to authenticated;
+grant insert (id, name, phone, notes) on public.credit_customers to authenticated;
+grant update (name, phone, notes) on public.credit_customers to authenticated;
+
+revoke all on table public.credit_transactions from anon, authenticated;
+grant select on table public.credit_transactions to authenticated;
 
 -- Confirma se a identidade foi explicitamente cadastrada como administradora.
 -- Esta função é usada somente no fluxo de login, antes do desafio MFA.
@@ -213,6 +273,33 @@ on public.stock_movements for select
 to authenticated
 using ((select public.is_admin()));
 
+drop policy if exists "admin can view credit customers" on public.credit_customers;
+create policy "admin can view credit customers"
+on public.credit_customers for select
+to authenticated
+using ((select public.is_admin()));
+
+drop policy if exists "admin can insert credit customers" on public.credit_customers;
+create policy "admin can insert credit customers"
+on public.credit_customers for insert
+to authenticated
+with check ((select public.is_admin()));
+
+drop policy if exists "admin can update credit customers" on public.credit_customers;
+create policy "admin can update credit customers"
+on public.credit_customers for update
+to authenticated
+using ((select public.is_admin()))
+with check ((select public.is_admin()));
+
+drop policy if exists "admin can view credit transactions" on public.credit_transactions;
+create policy "admin can view credit transactions"
+on public.credit_transactions for select
+to authenticated
+using ((select public.is_admin()));
+
+-- Não há INSERT/UPDATE/DELETE direto em credit_transactions pela aplicação.
+
 -- updated_at é responsabilidade do banco, não do navegador.
 create or replace function public.set_updated_at()
 returns trigger
@@ -228,6 +315,11 @@ $$;
 drop trigger if exists products_set_updated_at on public.products;
 create trigger products_set_updated_at
 before update on public.products
+for each row execute function public.set_updated_at();
+
+drop trigger if exists credit_customers_set_updated_at on public.credit_customers;
+create trigger credit_customers_set_updated_at
+before update on public.credit_customers
 for each row execute function public.set_updated_at();
 
 revoke all on function public.set_updated_at() from public;
@@ -343,6 +435,267 @@ after insert on public.products
 for each row execute function public.log_initial_stock();
 
 revoke all on function public.log_initial_stock() from public;
+
+-- Resumo calculado da caderneta. Lançamentos cancelados continuam no histórico,
+-- mas deixam de participar dos totais.
+create or replace function public.get_credit_customer_balances()
+returns table (
+  customer_id uuid,
+  customer_name text,
+  phone text,
+  notes text,
+  total_purchases numeric,
+  total_payments numeric,
+  balance numeric,
+  last_activity_on date,
+  customer_created_at timestamptz
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Sem permissão administrativa';
+  end if;
+
+  return query
+  select
+    c.id,
+    c.name,
+    c.phone,
+    c.notes,
+    coalesce(sum(t.amount) filter (where t.type = 'purchase' and t.reversed_at is null), 0),
+    coalesce(sum(t.amount) filter (where t.type = 'payment' and t.reversed_at is null), 0),
+    coalesce(sum(
+      case
+        when t.reversed_at is not null then 0
+        when t.type = 'purchase' then t.amount
+        else -t.amount
+      end
+    ), 0),
+    max(t.occurred_on) filter (where t.reversed_at is null),
+    c.created_at
+  from public.credit_customers c
+  left join public.credit_transactions t on t.customer_id = c.id
+  group by c.id, c.name, c.phone, c.notes, c.created_at
+  order by 7 desc, c.name;
+end;
+$$;
+
+revoke all on function public.get_credit_customer_balances() from public;
+grant execute on function public.get_credit_customer_balances() to authenticated;
+
+-- Compra fiada ou pagamento parcial: valida, serializa por cliente e grava uma
+-- única vez mesmo se o navegador repetir a requisição após uma falha de rede.
+create or replace function public.record_credit_transaction(
+  p_customer_id uuid,
+  p_type text,
+  p_amount numeric,
+  p_description text,
+  p_occurred_on date,
+  p_operation_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  previous_transaction public.credit_transactions%rowtype;
+  target_customer_id uuid;
+  normalized_description text := nullif(btrim(coalesce(p_description, '')), '');
+  transaction_day date := coalesce(p_occurred_on, current_date);
+  current_balance numeric := 0;
+  new_transaction_id uuid;
+begin
+  if not public.is_admin() then
+    raise exception 'Sem permissão administrativa';
+  end if;
+
+  if p_customer_id is null or p_operation_id is null then
+    raise exception 'Cliente e identificador da operação são obrigatórios';
+  end if;
+
+  if p_type is null or p_type not in ('purchase', 'payment') then
+    raise exception 'Tipo de lançamento inválido';
+  end if;
+
+  if p_amount is null or p_amount <= 0 or p_amount > 99999999.99
+    or round(p_amount, 2) <> p_amount then
+    raise exception 'Informe um valor válido com até 2 casas decimais';
+  end if;
+
+  if transaction_day > current_date then
+    raise exception 'A data do lançamento não pode estar no futuro';
+  end if;
+
+  if normalized_description is not null and length(normalized_description) > 200 then
+    raise exception 'A descrição deve ter no máximo 200 caracteres';
+  end if;
+
+  if p_type = 'purchase' and normalized_description is null then
+    raise exception 'Informe o que foi comprado';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(p_operation_id::text, 0)
+  );
+
+  select t.* into previous_transaction
+  from public.credit_transactions t
+  where t.operation_id = p_operation_id;
+
+  if found then
+    if previous_transaction.customer_id = p_customer_id
+      and previous_transaction.type = p_type
+      and previous_transaction.amount = p_amount
+      and previous_transaction.description is not distinct from normalized_description
+      and previous_transaction.occurred_on = transaction_day
+      and previous_transaction.created_by is not distinct from (select auth.uid()) then
+      return previous_transaction.id;
+    end if;
+
+    raise exception 'Identificador de lançamento já utilizado com outros dados';
+  end if;
+
+  -- A linha do cliente funciona como mutex para lançamentos e cancelamentos.
+  select c.id into target_customer_id
+  from public.credit_customers c
+  where c.id = p_customer_id
+  for update;
+
+  if not found then
+    raise exception 'Cliente não encontrado';
+  end if;
+
+  if p_type = 'payment' then
+    select coalesce(sum(
+      case when t.type = 'purchase' then t.amount else -t.amount end
+    ), 0)
+    into current_balance
+    from public.credit_transactions t
+    where t.customer_id = p_customer_id
+      and t.reversed_at is null;
+
+    if current_balance <= 0 then
+      raise exception 'Este cliente não possui saldo em aberto';
+    end if;
+
+    if p_amount > current_balance then
+      raise exception 'O pagamento não pode ser maior que o saldo em aberto';
+    end if;
+  end if;
+
+  insert into public.credit_transactions (
+    operation_id,
+    customer_id,
+    type,
+    amount,
+    description,
+    occurred_on,
+    created_by
+  ) values (
+    p_operation_id,
+    p_customer_id,
+    p_type,
+    p_amount,
+    normalized_description,
+    transaction_day,
+    (select auth.uid())
+  )
+  returning id into new_transaction_id;
+
+  return new_transaction_id;
+end;
+$$;
+
+revoke all on function public.record_credit_transaction(uuid, text, numeric, text, date, uuid) from public;
+grant execute on function public.record_credit_transaction(uuid, text, numeric, text, date, uuid) to authenticated;
+
+-- Corrige erros sem apagar o histórico. Uma compra só pode ser cancelada se isso
+-- não fizer os pagamentos já registrados ultrapassarem o total das compras.
+create or replace function public.cancel_credit_transaction(
+  p_transaction_id uuid,
+  p_reversal_operation_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_transaction public.credit_transactions%rowtype;
+  target_customer_id uuid;
+  current_balance numeric := 0;
+begin
+  if not public.is_admin() then
+    raise exception 'Sem permissão administrativa';
+  end if;
+
+  if p_transaction_id is null or p_reversal_operation_id is null then
+    raise exception 'Lançamento e identificador do cancelamento são obrigatórios';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(p_reversal_operation_id::text, 0)
+  );
+
+  select t.* into target_transaction
+  from public.credit_transactions t
+  where t.id = p_transaction_id
+  for update;
+
+  if not found then
+    raise exception 'Lançamento não encontrado';
+  end if;
+
+  if target_transaction.reversed_at is not null then
+    if target_transaction.reversal_operation_id = p_reversal_operation_id
+      and target_transaction.reversed_by is not distinct from (select auth.uid()) then
+      return target_transaction.id;
+    end if;
+
+    raise exception 'Este lançamento já foi cancelado';
+  end if;
+
+  select c.id into target_customer_id
+  from public.credit_customers c
+  where c.id = target_transaction.customer_id
+  for update;
+
+  if not found then
+    raise exception 'Cliente não encontrado';
+  end if;
+
+  if target_transaction.type = 'purchase' then
+    select coalesce(sum(
+      case when t.type = 'purchase' then t.amount else -t.amount end
+    ), 0)
+    into current_balance
+    from public.credit_transactions t
+    where t.customer_id = target_transaction.customer_id
+      and t.reversed_at is null;
+
+    if current_balance - target_transaction.amount < 0 then
+      raise exception 'Cancele primeiro os pagamentos ligados a esta compra';
+    end if;
+  end if;
+
+  update public.credit_transactions
+  set
+    reversed_at = now(),
+    reversed_by = (select auth.uid()),
+    reversal_operation_id = p_reversal_operation_id
+  where id = target_transaction.id;
+
+  return target_transaction.id;
+end;
+$$;
+
+revoke all on function public.cancel_credit_transaction(uuid, uuid) from public;
+grant execute on function public.cancel_credit_transaction(uuid, uuid) to authenticated;
 
 -- STORAGE
 -- Configuração versionada do bucket público usado pelo catálogo.

@@ -42,6 +42,18 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - inputs e botões foram ajustados para uso móvel e contraste básico;
 - foram adicionados testes de regressão sem novas dependências e uma verificação pública do Supabase.
 
+### Caderneta mínima adicionada
+
+- clientes, WhatsApp opcional e observações ficam somente no painel privado;
+- compras fiadas e pagamentos parciais passam por uma RPC atômica e idempotente;
+- o saldo é calculado pelo histórico e não possui campo editável;
+- pagamento acima do saldo é recusado pelo PostgreSQL;
+- lançamentos não podem ser inseridos, alterados ou apagados diretamente pelo frontend;
+- correções cancelam o lançamento sem removê-lo e preservam a auditoria;
+- RLS, grants e RPCs da caderneta exigem administradora em AAL2;
+- exportação CSV compatível com Excel/Google Planilhas neutraliza fórmulas em textos;
+- impressão fornece um resumo que pode ser salvo em PDF, sem nova dependência.
+
 ## Pendente antes de chamar de “pronto para uso”
 
 ### P0 — obrigatório
@@ -50,6 +62,8 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - manter novos cadastros desabilitados no Auth — a verificação mais recente confirmou essa configuração;
 - executar `npm run verify:supabase` depois do novo SQL e exigir resultado totalmente verde;
 - executar o checklist funcional do README, incluindo enrollment e novo login com MFA, preferencialmente também em um iPhone;
+- testar compra de R$ 100,00, pagamento parcial de R$ 80,00, recusa de pagamento acima do saldo e cancelamento na caderneta;
+- confirmar que a caderneta, seus RPCs e as tabelas de clientes não respondem para acesso anônimo;
 - confirmar cadastro e login pelo autenticador reserva;
 - publicar o novo build no Cloudflare Pages e conferir os headers de resposta.
 
@@ -60,7 +74,7 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 - avaliar botão de ajuste de estoque para corrigir inventário sem fingir venda/entrada;
 - adicionar recuperação de senha ou documentar o procedimento de reset;
 - considerar PWA (“Adicionar à Tela de Início”) se ela usar o painel diariamente;
-- considerar exportação CSV/backup simples;
+- definir uma rotina mensal para guardar a exportação da caderneta em pasta privada;
 - documentar o procedimento administrativo de reset de senha e de MFA.
 
 ### P2 — somente se houver demanda real
@@ -76,8 +90,9 @@ A arquitetura continua adequada para o MVP: frontend estático + Supabase, sem b
 
 ## Observação de validação
 
-Em 31/08/2026, `npm install`, `npm test`, `npm audit` e `npm run build`
-concluíram com sucesso; o audit encontrou zero vulnerabilidades. As sondagens anônimas
-confirmaram bloqueio de `app_admins`, histórico e RPCs administrativas no projeto
-real. Os fluxos autenticados AAL1/AAL2 e as alterações do novo SQL ainda precisam ser
-validados com a conta administradora depois que o arquivo for executado no Supabase.
+Em 01/09/2026, `npm install`, `npm test`, `npm audit` e `npm run build`
+concluíram com sucesso; os 8 testes passaram e o audit encontrou zero vulnerabilidades.
+As sondagens anônimas anteriores confirmaram o bloqueio de `app_admins`, histórico e
+RPCs de estoque no projeto real. As novas tabelas/RPCs da caderneta e todos os fluxos
+autenticados AAL1/AAL2 ainda precisam ser validados depois que o `supabase.sql`
+atualizado for executado no Supabase.

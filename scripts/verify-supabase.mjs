@@ -54,12 +54,27 @@ async function expectDenied(label, request) {
 
 await expectDenied('app_admins', () => supabase.from('app_admins').select('user_id').limit(1))
 await expectDenied('stock_movements', () => supabase.from('stock_movements').select('id').limit(1))
+await expectDenied('credit_customers', () => supabase.from('credit_customers').select('id').limit(1))
+await expectDenied('credit_transactions', () => supabase.from('credit_transactions').select('id').limit(1))
 await expectDenied('is_admin_identity', () => supabase.rpc('is_admin_identity'))
 await expectDenied('adjust_stock', () => supabase.rpc('adjust_stock', {
   p_product_id: '00000000-0000-0000-0000-000000000000',
   p_delta: 1,
   p_type: 'entry',
   p_operation_id: crypto.randomUUID()
+}))
+await expectDenied('get_credit_customer_balances', () => supabase.rpc('get_credit_customer_balances'))
+await expectDenied('record_credit_transaction', () => supabase.rpc('record_credit_transaction', {
+  p_customer_id: '00000000-0000-0000-0000-000000000000',
+  p_type: 'purchase',
+  p_amount: 1,
+  p_description: 'Teste anônimo',
+  p_occurred_on: '2026-09-01',
+  p_operation_id: crypto.randomUUID()
+}))
+await expectDenied('cancel_credit_transaction', () => supabase.rpc('cancel_credit_transaction', {
+  p_transaction_id: '00000000-0000-0000-0000-000000000000',
+  p_reversal_operation_id: crypto.randomUUID()
 }))
 
 for (const [label, filter] of [

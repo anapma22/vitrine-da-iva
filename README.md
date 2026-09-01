@@ -2,6 +2,8 @@
 
 MVP simples para uma revendedora controlar produtos à pronta entrega e compartilhar um catálogo público com clientes.
 
+Para a operação diária, consulte o [Guia rápido da Área da vendedora](GUIA-DA-VENDEDORA.md).
+
 ## O que já faz
 
 - catálogo público responsivo;
@@ -20,6 +22,10 @@ MVP simples para uma revendedora controlar produtos à pronta entrega e comparti
 - histórico das últimas movimentações;
 - produto com estoque 0 some automaticamente do catálogo público;
 - estoque atualizado de forma atômica no banco.
+- caderneta privada de clientes no mesmo painel;
+- registro de compras fiadas e pagamentos parciais;
+- saldo automático por cliente e histórico sem exclusão;
+- exportação da caderneta para Excel/Google Planilhas e impressão em PDF.
 
 ## Stack
 
@@ -123,8 +129,14 @@ Antes do deploy, valide:
 15. editar preço/nome/foto e confirmar que o estoque não é alterado;
 16. cadastrar um preço promocional menor que o normal e conferir a aba **Promoções**;
 17. tentar cadastrar uma promoção igual ou maior que o preço normal e confirmar que é recusada;
-18. abrir o botão do WhatsApp e conferir número e mensagem;
-19. executar `npm run verify:supabase` e confirmar que todas as verificações passam.
+18. abrir **Caderneta**, cadastrar um cliente e confirmar que ele não aparece no catálogo público;
+19. registrar uma compra fiada de R$ 100,00 e um pagamento de R$ 80,00;
+20. confirmar que o saldo do cliente ficou em R$ 20,00;
+21. tentar pagar mais que o saldo e confirmar que a operação é recusada;
+22. cancelar um lançamento e confirmar que ele permanece riscado no histórico sem afetar o saldo;
+23. testar **Exportar Excel** e **Salvar resumo em PDF**;
+24. abrir o botão do WhatsApp e conferir número e mensagem;
+25. executar `npm run verify:supabase` e confirmar que todas as verificações passam.
 
 ## 5. Publicar no Cloudflare Pages
 
@@ -170,9 +182,15 @@ documente também o reset administrativo do fator pelo responsável técnico.
 
 **Reposição:** tocar em **Chegou 1**.
 
+**Venda fiada:** tocar em **Vendi 1** no produto e, na aba **Caderneta**, registrar a compra para o cliente. Quando receber dinheiro, registrar somente o valor pago naquele momento.
+
 O histórico registra cada entrada e venda. A quantidade não pode ser alterada
 diretamente pela aplicação: o ajuste passa pela função atômica e idempotente
 `adjust_stock`.
+
+A caderneta mantém compras e pagamentos separados do estoque. Seus lançamentos
+também são atômicos e idempotentes; o saldo é calculado pelo histórico e não pode
+ser digitado diretamente. Correções cancelam o lançamento sem apagá-lo.
 
 ## Limitações intencionais do MVP
 
@@ -181,12 +199,12 @@ diretamente pela aplicação: o ajuste passa pela função atômica e idempotent
 - não há carrinho ou pagamento online;
 - não há reserva de produto;
 - tamanho/cor são cadastrados no nome do produto;
-- não há custo/lucro;
+- não há custo, despesas, lucro ou contabilidade completa;
 - não há importação de catálogo Natura/Boticário/Demillus;
 - não há recuperação de senha dentro da interface;
 - o Supabase não fornece códigos de recuperação para TOTP; se o autenticador for perdido, o acesso precisa ser recuperado administrativamente ou por um fator de backup;
 - não há PWA/offline;
-- não há backup/exportação pela interface;
+- a caderneta não altera o estoque automaticamente; numa venda fiada é preciso registrar as duas operações;
 - o botão de WhatsApp não reduz estoque automaticamente, porque conversa não significa venda.
 
 Esses itens devem ser priorizados somente depois do teste real de uso.
@@ -201,6 +219,9 @@ Esses itens devem ser priorizados somente depois do teste real de uso.
 - operações administrativas exigem JWT com `aal = aal2` (senha + MFA confirmado), não apenas uma checagem visual no frontend;
 - `stock_movements` não pode ser alterada diretamente pela aplicação;
 - cada operação de estoque possui UUID único para impedir duplicação em retries;
+- clientes e lançamentos da caderneta não possuem acesso público e exigem admin em AAL2;
+- compras e pagamentos só entram por uma função atômica com UUID idempotente;
+- pagamentos acima do saldo são recusados e lançamentos financeiros nunca são apagados pela aplicação;
 - produtos não são deletados pela UI: são ocultados, preservando histórico;
 - fotos são públicas apenas para leitura, pois fazem parte do catálogo;
 - o deploy recomendado aplica CSP e bloqueia clickjacking pelo arquivo `_headers`.
